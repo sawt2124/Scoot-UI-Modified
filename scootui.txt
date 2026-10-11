@@ -5134,7 +5134,12 @@ local Library do
             Model = nil,
 
             ESP = Data.ESP ~= false,
-            Label = nil,
+            Settings = Data.Settings,
+
+            Label = Data.Label or "user",
+            Tool = Data.Tool or "Revolver",
+            DistanceText = Data.DistanceText or "45 studs",
+
             Health = 1,
             IdleTrack = nil,
             Root = nil,
@@ -5142,15 +5147,6 @@ local Library do
         }
 
         local PreviewPlayer = ESPPreview.Player
-        ESPPreview.Label = Data.Label or PreviewPlayer.Name
-
-        if ESPPreview.UserId then 
-            local Success, UserName = pcall(function()
-                return Players:GetNameFromUserIdAsync(ESPPreview.UserId)
-            end)
-
-            ESPPreview.Label = Data.Label or (Success and UserName) or ("User " .. tostring(ESPPreview.UserId))
-        end
 
         local Items = { } do
             Items["Panel"] = Instances:Create("Frame", {
@@ -5263,33 +5259,90 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
-            Items["ESPBox"] = Instances:Create("Frame", {
+            local function CreateOutline()
+                local Frame = Instances:Create("Frame", {
+                    Parent = Items["Overlay"].Instance,
+                    Name = "\0",
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Size = UDim2New(0, 0, 0, 0),
+                    Position = UDim2New(0, 0, 0, 0),
+                    ZIndex = 7,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                })
+
+                Instances:Create("UIStroke", {
+                    Parent = Frame.Instance,
+                    Name = "\0",
+                    Color = FromRGB(0, 0, 0),
+                    Thickness = 1,
+                    LineJoinMode = Enum.LineJoinMode.Miter
+                })
+
+                return Frame
+            end
+
+            local function CreateLine(Rotation)
+                local Frame = Instances:Create("Frame", {
+                    Parent = Items["Overlay"].Instance,
+                    Name = "\0",
+                    BackgroundColor3 = FromRGB(255, 255, 255),
+                    BorderSizePixel = 0,
+                    Size = UDim2New(0, 0, 0, 0),
+                    Position = UDim2New(0, 0, 0, 0),
+                    ZIndex = 6
+                })
+
+                local Gradient = Instances:Create("UIGradient", {
+                    Parent = Frame.Instance,
+                    Name = "\0",
+                    Rotation = Rotation,
+                    Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(0.5, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(255, 255, 255))}
+                })
+
+                return Frame, Gradient
+            end
+
+            Items["BoxOuter"] = CreateOutline()
+            Items["BoxInner"] = CreateOutline()
+
+            Items["BoxLeft"], Items["BoxLeftGradient"] = CreateLine(90)
+            Items["BoxRight"], Items["BoxRightGradient"] = CreateLine(90)
+            Items["BoxTop"], Items["BoxTopGradient"] = CreateLine(0)
+            Items["BoxBottom"], Items["BoxBottomGradient"] = CreateLine(0)
+
+            Items["HealthOutline"] = Instances:Create("Frame", {
                 Parent = Items["Overlay"].Instance,
                 Name = "\0",
-                BackgroundTransparency = 1,
-                BorderColor3 = FromRGB(0, 0, 0),
+                BackgroundColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
                 Size = UDim2New(0, 0, 0, 0),
                 Position = UDim2New(0, 0, 0, 0),
-                BorderSizePixel = 0,
-                ZIndex = 5,
-                BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["ESPBox"]:AddToTheme({BackgroundColor3 = "Accent"})
+                ZIndex = 6
+            })
 
-            Items["ESPBoxStroke"] = Instances:Create("UIStroke", {
-                Parent = Items["ESPBox"].Instance,
+            Items["HealthFill"] = Instances:Create("Frame", {
+                Parent = Items["Overlay"].Instance,
                 Name = "\0",
-                Color = FromRGB(202, 243, 255),
-                Thickness = 1,
-                Transparency = 0,
-                LineJoinMode = Enum.LineJoinMode.Miter
-            })  Items["ESPBoxStroke"]:AddToTheme({Color = "Accent"})
+                BackgroundColor3 = FromRGB(255, 255, 255),
+                BorderSizePixel = 0,
+                Size = UDim2New(0, 0, 0, 0),
+                Position = UDim2New(0, 0, 0, 0),
+                ZIndex = 7
+            })
+
+            Items["HealthFillGradient"] = Instances:Create("UIGradient", {
+                Parent = Items["HealthFill"].Instance,
+                Name = "\0",
+                Rotation = 90,
+                Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 0, 0)), RGBSequenceKeypoint(0.5, FromRGB(255, 255, 0)), RGBSequenceKeypoint(1, FromRGB(0, 255, 0))}
+            })
 
             Items["ESPName"] = Instances:Create("TextLabel", {
                 Parent = Items["Overlay"].Instance,
                 Name = "\0",
                 FontFace = Library.Font,
-                TextColor3 = FromRGB(235, 235, 235),
-                BorderColor3 = FromRGB(0, 0, 0),
+                TextColor3 = FromRGB(255, 255, 255),
                 Text = ESPPreview.Label,
                 AnchorPoint = Vector2New(0.5, 1),
                 Size = UDim2New(0, 0, 0, 15),
@@ -5297,35 +5350,44 @@ local Library do
                 Position = UDim2New(0, 0, 0, 0),
                 BorderSizePixel = 0,
                 AutomaticSize = Enum.AutomaticSize.X,
-                TextSize = 9,
-                ZIndex = 6,
+                TextSize = 11,
+                ZIndex = 8,
                 BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["ESPName"]:AddToTheme({TextColor3 = "Text"})
+            })  Items["ESPNameStroke"] = Items["ESPName"]:TextBorder()
 
-            Items["ESPNameStroke"] = Items["ESPName"]:TextBorder()
-
-            Items["ESPHealthBack"] = Instances:Create("Frame", {
+            Items["ESPTool"] = Instances:Create("TextLabel", {
                 Parent = Items["Overlay"].Instance,
                 Name = "\0",
-                BackgroundTransparency = 0.5,
-                BorderColor3 = FromRGB(0, 0, 0),
-                BorderSizePixel = 1,
-                Size = UDim2New(0, 2, 0, 0),
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                Text = ESPPreview.Tool,
+                AnchorPoint = Vector2New(0.5, 0),
+                Size = UDim2New(0, 0, 0, 15),
+                BackgroundTransparency = 1,
                 Position = UDim2New(0, 0, 0, 0),
-                ZIndex = 6,
-                BackgroundColor3 = FromRGB(12, 12, 12)
-            })  Items["ESPHealthBack"]:AddToTheme({BackgroundColor3 = "Border"})
-
-            Items["ESPHealthFill"] = Instances:Create("Frame", {
-                Parent = Items["ESPHealthBack"].Instance,
-                Name = "\0",
-                AnchorPoint = Vector2New(0, 1),
-                Position = UDim2New(0, 0, 1, 0),
                 BorderSizePixel = 0,
-                Size = UDim2New(1, 0, 1, 0),
-                ZIndex = 7,
-                BackgroundColor3 = FromRGB(202, 243, 255)
-            })  Items["ESPHealthFill"]:AddToTheme({BackgroundColor3 = "Accent"})
+                AutomaticSize = Enum.AutomaticSize.X,
+                TextSize = 11,
+                ZIndex = 8,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })  Items["ESPToolStroke"] = Items["ESPTool"]:TextBorder()
+
+            Items["ESPDistance"] = Instances:Create("TextLabel", {
+                Parent = Items["Overlay"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(255, 255, 255),
+                Text = ESPPreview.DistanceText,
+                AnchorPoint = Vector2New(0.5, 0),
+                Size = UDim2New(0, 0, 0, 15),
+                BackgroundTransparency = 1,
+                Position = UDim2New(0, 0, 0, 0),
+                BorderSizePixel = 0,
+                AutomaticSize = Enum.AutomaticSize.X,
+                TextSize = 11,
+                ZIndex = 8,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })  Items["ESPDistanceStroke"] = Items["ESPDistance"]:TextBorder()
         end
 
         local Camera = Items["Camera"].Instance
@@ -5768,17 +5830,43 @@ local Library do
             return Vector2New(ScreenX, ScreenY)
         end
 
+        local function GetSettings()
+            local Settings = ESPPreview.Settings
+
+            if type(Settings) == "function" then
+                local Success, Result = pcall(Settings)
+                Settings = Success and Result or nil
+            end
+
+            return Settings or { }
+        end
+
         function UpdateOverlay()
             local Model = ESPPreview.Model
+            local Overlay = Items["Overlay"].Instance
 
-            if not Model or not ESPPreview.ESP then
+            local AllItems = { "BoxOuter", "BoxInner", "BoxLeft", "BoxRight", "BoxTop", "BoxBottom", "HealthOutline", "HealthFill", "ESPName", "ESPTool", "ESPDistance" }
+
+            local function HideAll()
+                for _, Key in AllItems do
+                    Items[Key].Instance.Visible = false
+                end
+            end
+
+            if not Model or not Overlay.Visible then
                 return
             end
 
-            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+            local Settings = GetSettings()
+            local Enabled = Settings.Enabled
 
-            if Humanoid and Humanoid.MaxHealth > 0 then
-                ESPPreview.Health = Humanoid.Health / Humanoid.MaxHealth
+            if Enabled == nil then
+                Enabled = ESPPreview.ESP
+            end
+
+            if not Enabled then
+                HideAll()
+                return
             end
 
             local BoxCFrame, BoxSize = Model:GetBoundingBox()
@@ -5803,21 +5891,133 @@ local Library do
             end
 
             if MinX == math.huge then
+                HideAll()
                 return
             end
 
-            local OverlaySize = Items["Overlay"].Instance.AbsoluteSize
+            local OverlaySize = Overlay.AbsoluteSize
             local BoxX = math.clamp(MinX - 4, 0, OverlaySize.X)
             local BoxY = math.clamp(MinY - 4, 0, OverlaySize.Y)
             local BoxW = math.clamp(MaxX - MinX + 8, 0, OverlaySize.X - BoxX)
             local BoxH = math.clamp(MaxY - MinY + 8, 0, OverlaySize.Y - BoxY)
 
-            Items["ESPBox"].Instance.Position = UDim2New(0, BoxX, 0, BoxY)
-            Items["ESPBox"].Instance.Size = UDim2New(0, BoxW, 0, BoxH)
-            Items["ESPName"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY)
-            Items["ESPHealthBack"].Instance.Position = UDim2New(0, BoxX - 5, 0, BoxY)
-            Items["ESPHealthBack"].Instance.Size = UDim2New(0, 2, 0, BoxH)
-            Items["ESPHealthFill"].Instance.Size = UDim2New(1, 0, math.clamp(ESPPreview.Health, 0, 1), 0)
+            local White = FromRGB(255, 255, 255)
+
+            -- Box (gradient outline + black outer/inner)
+            local ShowBox = Settings.Boxes
+            if ShowBox == nil then ShowBox = true end
+
+            for _, Key in { "BoxOuter", "BoxInner", "BoxLeft", "BoxRight", "BoxTop", "BoxBottom" } do
+                Items[Key].Instance.Visible = ShowBox
+            end
+
+            if ShowBox then
+                Items["BoxOuter"].Instance.Position = UDim2New(0, BoxX - 1, 0, BoxY - 1)
+                Items["BoxOuter"].Instance.Size = UDim2New(0, BoxW + 2, 0, BoxH + 2)
+                Items["BoxInner"].Instance.Position = UDim2New(0, BoxX + 1, 0, BoxY + 1)
+                Items["BoxInner"].Instance.Size = UDim2New(0, BoxW - 2, 0, BoxH - 2)
+
+                Items["BoxLeft"].Instance.Position = UDim2New(0, BoxX, 0, BoxY)
+                Items["BoxLeft"].Instance.Size = UDim2New(0, 1, 0, BoxH)
+                Items["BoxRight"].Instance.Position = UDim2New(0, BoxX + BoxW - 1, 0, BoxY)
+                Items["BoxRight"].Instance.Size = UDim2New(0, 1, 0, BoxH)
+                Items["BoxTop"].Instance.Position = UDim2New(0, BoxX, 0, BoxY)
+                Items["BoxTop"].Instance.Size = UDim2New(0, BoxW, 0, 1)
+                Items["BoxBottom"].Instance.Position = UDim2New(0, BoxX, 0, BoxY + BoxH - 1)
+                Items["BoxBottom"].Instance.Size = UDim2New(0, BoxW, 0, 1)
+
+                local Outline = Settings.Outline or { }
+
+                local function OutlineColor(Key)
+                    return Outline[Key] or White
+                end
+
+                Items["BoxLeftGradient"].Instance.Color = RGBSequence{
+                    RGBSequenceKeypoint(0, OutlineColor("Color1")),
+                    RGBSequenceKeypoint(0.5, OutlineColor("Color5")),
+                    RGBSequenceKeypoint(1, OutlineColor("Color3"))
+                }
+                Items["BoxRightGradient"].Instance.Color = RGBSequence{
+                    RGBSequenceKeypoint(0, OutlineColor("Color2")),
+                    RGBSequenceKeypoint(0.5, OutlineColor("Color6")),
+                    RGBSequenceKeypoint(1, OutlineColor("Color4"))
+                }
+                Items["BoxTopGradient"].Instance.Color = RGBSequence{
+                    RGBSequenceKeypoint(0, OutlineColor("Color1")),
+                    RGBSequenceKeypoint(0.5, OutlineColor("Color2")),
+                    RGBSequenceKeypoint(1, OutlineColor("Color1"))
+                }
+                Items["BoxBottomGradient"].Instance.Color = RGBSequence{
+                    RGBSequenceKeypoint(0, OutlineColor("Color3")),
+                    RGBSequenceKeypoint(0.5, OutlineColor("Color4")),
+                    RGBSequenceKeypoint(1, OutlineColor("Color3"))
+                }
+            end
+
+            -- Healthbar (gradient from the ESP health colors, animated 0 -> 100 -> 0)
+            local ShowHealth = Settings.Healthbar
+            if ShowHealth == nil then ShowHealth = true end
+
+            Items["HealthOutline"].Instance.Visible = ShowHealth
+            Items["HealthFill"].Instance.Visible = ShowHealth
+
+            if ShowHealth then
+                local Thickness = Settings.HealthThickness or 1
+
+                local Period = 3
+                local Phase = (os.clock() % Period) / Period
+                local Health = Phase <= 0.5 and Phase * 2 or (2 - Phase * 2)
+                ESPPreview.Health = Health
+
+                local BarX = math.max(BoxX - Thickness - 4, 0)
+                local BarH = BoxH
+                local Fill = BarH * math.clamp(Health, 0, 1)
+
+                Items["HealthOutline"].Instance.Position = UDim2New(0, BarX - 1, 0, BoxY - 1)
+                Items["HealthOutline"].Instance.Size = UDim2New(0, Thickness + 2, 0, BarH + 2)
+
+                Items["HealthFill"].Instance.Position = UDim2New(0, BarX, 0, BoxY + (BarH - Fill))
+                Items["HealthFill"].Instance.Size = UDim2New(0, Thickness, 0, Fill)
+
+                local HealthColors = Settings.HealthColors or { }
+
+                Items["HealthFillGradient"].Instance.Color = RGBSequence{
+                    RGBSequenceKeypoint(0, HealthColors.Color1 or FromRGB(255, 0, 0)),
+                    RGBSequenceKeypoint(0.5, HealthColors.Color2 or FromRGB(255, 255, 0)),
+                    RGBSequenceKeypoint(1, HealthColors.Color3 or FromRGB(0, 255, 0))
+                }
+            end
+
+            -- Names
+            local ShowNames = Settings.Names
+            if ShowNames == nil then ShowNames = true end
+
+            Items["ESPName"].Instance.Visible = ShowNames
+
+            if ShowNames then
+                Items["ESPName"].Instance.Text = Settings.Name or ESPPreview.Label
+                Items["ESPName"].Instance.TextSize = Settings.NameSize or 11
+                Items["ESPName"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY - 2)
+            end
+
+            -- Tools + distance
+            local ShowTools = Settings.Tools
+            if ShowTools == nil then ShowTools = true end
+
+            Items["ESPTool"].Instance.Visible = ShowTools
+            Items["ESPDistance"].Instance.Visible = ShowTools
+
+            if ShowTools then
+                local ToolSize = Settings.ToolSize or 11
+
+                Items["ESPTool"].Instance.Text = Settings.Tool or ESPPreview.Tool
+                Items["ESPTool"].Instance.TextSize = ToolSize
+                Items["ESPTool"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY + BoxH + 3)
+
+                Items["ESPDistance"].Instance.Text = Settings.Distance or ESPPreview.DistanceText
+                Items["ESPDistance"].Instance.TextSize = ToolSize
+                Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY + BoxH + 3 + ToolSize + 3)
+            end
         end
 
         function ESPPreview:SetTitle(Text)
