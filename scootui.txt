@@ -5137,6 +5137,8 @@ local Library do
             Label = nil,
             Health = 1,
             IdleTrack = nil,
+            Root = nil,
+            RootOrigin = nil,
         }
 
         local PreviewPlayer = ESPPreview.Player
@@ -5448,6 +5450,8 @@ local Library do
 
             if Root then
                 Root.Anchored = true
+                ESPPreview.Root = Root
+                ESPPreview.RootOrigin = Root.CFrame
             end
 
             return Model
@@ -5489,6 +5493,8 @@ local Library do
                 return
             end
 
+            Humanoid.AutoRotate = false
+
             local Animator = Humanoid:FindFirstChildOfClass("Animator")
 
             if not Animator then
@@ -5504,16 +5510,33 @@ local Library do
                 return Animator:LoadAnimation(Animation)
             end)
 
-            if Success and Track then
-                Track.Looped = true
-                Track.Priority = Enum.AnimationPriority.Idle
+            if not Success or not Track then
+                return
+            end
+
+            Track.Looped = true
+            Track.Priority = Enum.AnimationPriority.Idle
+
+            pcall(function()
+                Track:Play(0)
+            end)
+
+            ESPPreview.IdleTrack = Track
+
+            -- Freeze the avatar on a natural pose so it stands perfectly still
+            -- (the idle animation has root motion that would otherwise slide it around).
+            task.spawn(function()
+                task.wait(0.15)
+
+                if ESPPreview.IdleTrack ~= Track then
+                    return
+                end
 
                 pcall(function()
-                    Track:Play(0)
+                    Track:AdjustSpeed(0)
+                    Track.TimePosition = 0.15
                 end)
-
-                ESPPreview.IdleTrack = Track
-            end
+            end)
         end
 
         local function StartMirror(Character, Model, FallbackIds)
@@ -5656,6 +5679,8 @@ local Library do
             WorldModel:ClearAllChildren()
             ESPPreview.Model = nil
             ESPPreview.IdleTrack = nil
+            ESPPreview.Root = nil
+            ESPPreview.RootOrigin = nil
 
             if ESPPreview.UserId then
                 local AvatarModel = BuildAvatarModel(ESPPreview.UserId)
@@ -5837,6 +5862,10 @@ local Library do
             if ESPPreview.AutoSpin then
                 ESPPreview.SpinAngle += ESPPreview.SpinSpeed * DeltaTime
                 UpdateCamera()
+            end
+
+            if ESPPreview.Root and ESPPreview.RootOrigin then
+                ESPPreview.Root.CFrame = ESPPreview.RootOrigin
             end
 
             UpdateOverlay()
