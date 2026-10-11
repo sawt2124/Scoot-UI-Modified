@@ -5835,6 +5835,118 @@ local Library do
             return Settings or { }
         end
 
+        function UpdateChams()
+            local Model = ESPPreview.Model
+
+            if not Model then
+                return
+            end
+
+            -- Cache each part's original look so chams can be undone.
+            if ESPPreview.PartsModel ~= Model then
+                ESPPreview.PartsModel = Model
+                ESPPreview.Parts = { }
+                ESPPreview.Decals = { }
+                ESPPreview.Clothing = { }
+
+                for _, Descendant in ipairs(Model:GetDescendants()) do
+                    if Descendant:IsA("BasePart") then
+                        ESPPreview.Parts[Descendant] = {
+                            Color = Descendant.Color,
+                            Material = Descendant.Material,
+                            Transparency = Descendant.Transparency
+                        }
+                    elseif Descendant:IsA("Decal") then
+                        ESPPreview.Decals[Descendant] = Descendant.Transparency
+                    elseif Descendant:IsA("Shirt") or Descendant:IsA("Pants") or Descendant:IsA("ShirtGraphic") then
+                        ESPPreview.Clothing[Descendant] = Descendant.Parent
+                    end
+                end
+
+                ESPPreview.ChamsApplied = false
+            end
+
+            local Settings = GetSettings()
+            local Chams = Settings.Chams
+            local Enabled = Chams and Chams.Enabled
+
+            local Color, Material, Transparency
+
+            if Enabled then
+                local Style = Chams.Style or "Solid"
+                local Fill = Chams.Fill or FromRGB(90, 200, 255)
+
+                if Style == "Glow" then
+                    Color = Fill
+                    Material = Enum.Material.Neon
+                    Transparency = math.clamp(Chams.GlowTransparency or 0, 0, 1)
+                elseif Style == "Highlight" then
+                    Color = FromHSV((os.clock() * (Chams.RainbowSpeed or 0.35)) % 1, 0.9, 1)
+                    Material = Enum.Material.Neon
+                    Transparency = 0
+                elseif Style == "Rainbow" then
+                    Color = FromHSV((os.clock() * (Chams.RainbowSpeed or 0.35)) % 1, Chams.RainbowSat or 1, 1)
+                    Material = Enum.Material.Neon
+                    Transparency = Chams.FillTransparency or 0.15
+                elseif Style == "Health" then
+                    Color = Chams.Full or FromRGB(60, 255, 110)
+                    Material = Enum.Material.Neon
+                    Transparency = 0
+                elseif Style == "Ghost" then
+                    Color = Fill
+                    Material = Enum.Material.Neon
+                    Transparency = math.clamp((Chams.FillTransparency or 0.15) + 0.2, 0, 1)
+                elseif Style == "Xray" then
+                    Color = Fill
+                    Material = Enum.Material.Neon
+                    Transparency = math.clamp((Chams.FillTransparency or 0.15) + 0.35, 0, 1)
+                elseif Style == "Outline" then
+                    Color = Chams.Outline or FromRGB(255, 255, 255)
+                    Material = Enum.Material.ForceField
+                    Transparency = 0.6
+                else
+                    Color = Fill
+                    Material = Enum.Material.SmoothPlastic
+                    Transparency = Chams.FillTransparency or 0.15
+                end
+            end
+
+            for Part, Original in ESPPreview.Parts do
+                if not Part.Parent then
+                    continue
+                end
+
+                if Enabled then
+                    Part.Color = Color
+                    Part.Material = Material
+                    Part.Transparency = Transparency
+                elseif ESPPreview.ChamsApplied then
+                    Part.Color = Original.Color
+                    Part.Material = Original.Material
+                    Part.Transparency = Original.Transparency
+                end
+            end
+
+            -- Hide clothing/decals so the chams colour shows cleanly.
+            for Decal, OriginalTransparency in ESPPreview.Decals do
+                if Enabled then
+                    Decal.Transparency = 1
+                elseif ESPPreview.ChamsApplied then
+                    Decal.Transparency = OriginalTransparency
+                end
+            end
+
+            for Object, OriginalParent in ESPPreview.Clothing do
+                if Enabled then
+                    Object.Parent = nil
+                elseif ESPPreview.ChamsApplied then
+                    Object.Parent = OriginalParent
+                end
+            end
+
+            ESPPreview.ChamsApplied = Enabled and true or false
+        end
+
         function UpdateOverlay()
             local Model = ESPPreview.Model
             local Overlay = Items["Overlay"].Instance
@@ -6081,6 +6193,7 @@ local Library do
                 ESPPreview.Root.CFrame = ESPPreview.RootOrigin
             end
 
+            UpdateChams()
             UpdateOverlay()
         end)
 
