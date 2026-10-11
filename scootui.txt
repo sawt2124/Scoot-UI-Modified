@@ -746,42 +746,93 @@ local Library do
         end
     end
 
-    -- Custom font
+    -- Custom fonts
+    Library.Fonts = { }
+    Library.FontName = "Monaco"
+
+    Library.FontList = {
+        ["Tahoma XP"] = {Id = "TahomaXP", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/windows-xp-tahoma.ttf"},
+        ["Tahoma Bold"] = {Id = "TahomaBold", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/tahomabd.ttf"},
+        ["Verdana"] = {Id = "Verdana", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/verdana.ttf"},
+        ["Inter"] = {Id = "Inter", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Inter.ttf"},
+        ["Inter Medium"] = {Id = "InterMedium", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/InterMedium.ttf"},
+        ["Poppins"] = {Id = "Poppins", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Poppins-Medium.ttf"},
+        ["Lato Bold"] = {Id = "LatoBold", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Lato-Bold.ttf"},
+        ["Monaco"] = {Id = "Monaco", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Monaco.ttf"},
+        ["Roboto Mono"] = {Id = "RobotoMono", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/RobotoMono-Regular.ttf"},
+        ["Lucida Console"] = {Id = "LucidaConsole", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/lucida-console.ttf"},
+        ["Minecraft"] = {Id = "Minecraft", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/MinecraftStandard.ttf"},
+        ["Minecraftia"] = {Id = "Minecraftia", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/minecraftia.ttf"},
+        ["Pixel Operator"] = {Id = "PixelOperator", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/PixelOperator.ttf"},
+        ["Smallest Pixel"] = {Id = "SmallestPixel", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/smallest_pixel-7.ttf"},
+        ["Proggy Clean"] = {Id = "ProggyClean", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/proggy-clean.ttf"},
+        ["Proggy Square"] = {Id = "ProggySquare", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/proggy-square.ttf"},
+        ["Proggy Tiny"] = {Id = "ProggyTiny", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/proggy-tiny.ttf"},
+        ["Cozette"] = {Id = "Cozette", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/cozette-vector.ttf"},
+        ["Basis33"] = {Id = "Basis33", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/basis33.ttf"},
+        ["NDS12"] = {Id = "NDS12", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/NDS12.ttf"},
+        ["Bubblegum Sans"] = {Id = "BubblegumSans", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Bubblegum-Sans.ttf"},
+        ["Figtree"] = {Id = "Figtree", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Figtree-Medium.ttf"},
+        ["Lexend"] = {Id = "Lexend", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Lexend-Medium.ttf"},
+        ["Outfit"] = {Id = "Outfit", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Outfit-Medium.ttf"},
+        ["Prompt"] = {Id = "Prompt", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Prompt-Regular.ttf"}
+    }
+
     local CustomFont = { } do
-        function CustomFont:New(Name, Weight, Style, Data)
-            if isfile(Library.Folders.Assets .. "/" .. Name .. ".json") then
-                return Font.new(getcustomasset(Library.Folders.Assets .. "/" .. Name .. ".json"))
+        function CustomFont:New(Id, Weight, Style, Data)
+            if isfile(Library.Folders.Assets .. "/" .. Id .. ".json") then
+                return Font.new(getcustomasset(Library.Folders.Assets .. "/" .. Id .. ".json"))
             end
 
-            if not isfile(Library.Folders.Assets .. "/" .. Name .. ".ttf") then 
-                writefile(Library.Folders.Assets .. "/" .. Name .. ".ttf", game:HttpGet(Data.Url))
+            if not isfile(Library.Folders.Assets .. "/" .. Id .. ".ttf") then 
+                writefile(Library.Folders.Assets .. "/" .. Id .. ".ttf", game:HttpGet(Data.Url))
             end
 
             local FontData = {
-                name = Name,
+                name = Id,
                 faces = { {
                     name = "Regular",
                     weight = Weight,
                     style = Style,
-                    assetId = getcustomasset(Library.Folders.Assets .. "/" .. Name .. ".ttf")
+                    assetId = getcustomasset(Library.Folders.Assets .. "/" .. Id .. ".ttf")
                 } }
             }
 
-            writefile(Library.Folders.Assets .. "/" .. Name .. ".json", HttpService:JSONEncode(FontData))
-            return Font.new(getcustomasset(Library.Folders.Assets .. "/" .. Name .. ".json"))
+            writefile(Library.Folders.Assets .. "/" .. Id .. ".json", HttpService:JSONEncode(FontData))
+            return Font.new(getcustomasset(Library.Folders.Assets .. "/" .. Id .. ".json"))
         end
 
-        function CustomFont:Get(Name)
-            if isfile(Library.Folders.Assets .. "/" .. Name .. ".json") then
-                return Font.new(getcustomasset(Library.Folders.Assets .. "/" .. Name .. ".json"))
+        for DisplayName, Data in Library.FontList do 
+            Library.Fonts[DisplayName] = CustomFont:New(Data.Id, 400, "Regular", Data)
+        end
+
+        Library.Font = Library.Fonts[Library.FontName]
+    end
+
+    Library.SetFont = function(self, Name)
+        local NewFont = self.Fonts[Name]
+
+        if not NewFont then 
+            return
+        end
+
+        self.Font = NewFont
+        self.FontName = Name
+        self.Flags["Font"] = Name
+
+        local Holders = { self.Holder, self.NotifHolder, self.UnusedHolder }
+
+        for _, Holder in Holders do 
+            if Holder and Holder.Instance then 
+                for _, Item in Holder.Instance:GetDescendants() do 
+                    if Item:IsA("TextLabel") or Item:IsA("TextButton") or Item:IsA("TextBox") then 
+                        pcall(function()
+                            Item.FontFace = NewFont
+                        end)
+                    end
+                end
             end
         end
-
-        CustomFont:New("Monaco", 400, "Regular", {
-            Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/Monaco.ttf"
-        })
-
-        Library.Font = CustomFont:Get("Monaco")
     end
 
     Library.Holder = Instances:Create("ScreenGui", {
@@ -6972,7 +7023,7 @@ local Library do
         return BlankElement, Items
     end
 
-    Library.CreateSettingsPage = function(self, Window, Watermark, KeybindList)
+    Library.CreateSettingsPage = function(self, Window, Watermark, KeybindList, ESPPreview)
         local SettingsPage = Window:Page({Name = "Settings", SubPages = true}) do 
             local ThemingSubPage = SettingsPage:SubPage({Name = "Theming", Columns = 2}) do 
                 local ColorsSection = ThemingSubPage:Section({Name = "Colors", Side = 1}) do
@@ -7263,6 +7314,33 @@ local Library do
                             end
                         })
                     end
+
+                    if ESPPreview then 
+                        MenuSection:Toggle({
+                            Name = "ESP Preview",
+                            Flag = "ESPPreview",
+                            Default = true,
+                            Callback = function(Value)
+                                ESPPreview:SetVisibility(Value)
+                            end
+                        })
+                    end
+
+                    local FontItems = { }
+
+                    for Name in Library.Fonts do 
+                        TableInsert(FontItems, Name)
+                    end
+
+                    MenuSection:Dropdown({
+                        Name = "Font",
+                        Flag = "Font",
+                        Items = FontItems,
+                        Default = Library.FontName,
+                        Callback = function(Value)
+                            Library:SetFont(Value)
+                        end
+                    })
 
                     MenuSection:Label("UI Keybind"):Keybind({
                         Name = "Menu keybind",
