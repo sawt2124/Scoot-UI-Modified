@@ -5483,6 +5483,13 @@ local Library do
                 return nil
             end
 
+            -- Accessory handles only snap onto the body once the model is parented
+            -- into the DataModel (welds resolve). Off-parent they sit at bogus offsets
+            -- and blow up the bounding box, which zooms the camera out to a sliver.
+            -- Parenting under the camera resolves them without the avatar flashing in world.
+            Model.Parent = Workspace.CurrentCamera or Camera
+            RunService.Heartbeat:Wait()
+
             return PrepareModel(Model)
         end
 
