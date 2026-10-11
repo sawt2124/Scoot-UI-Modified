@@ -5259,29 +5259,6 @@ local Library do
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
-            local function CreateOutline()
-                local Frame = Instances:Create("Frame", {
-                    Parent = Items["Overlay"].Instance,
-                    Name = "\0",
-                    BackgroundTransparency = 1,
-                    BorderSizePixel = 0,
-                    Size = UDim2New(0, 0, 0, 0),
-                    Position = UDim2New(0, 0, 0, 0),
-                    ZIndex = 7,
-                    BackgroundColor3 = FromRGB(255, 255, 255)
-                })
-
-                Instances:Create("UIStroke", {
-                    Parent = Frame.Instance,
-                    Name = "\0",
-                    Color = FromRGB(0, 0, 0),
-                    Thickness = 1,
-                    LineJoinMode = Enum.LineJoinMode.Miter
-                })
-
-                return Frame
-            end
-
             local function CreateLine(Rotation)
                 local Frame = Instances:Create("Frame", {
                     Parent = Items["Overlay"].Instance,
@@ -5303,23 +5280,10 @@ local Library do
                 return Frame, Gradient
             end
 
-            Items["BoxOuter"] = CreateOutline()
-            Items["BoxInner"] = CreateOutline()
-
             Items["BoxLeft"], Items["BoxLeftGradient"] = CreateLine(90)
             Items["BoxRight"], Items["BoxRightGradient"] = CreateLine(90)
             Items["BoxTop"], Items["BoxTopGradient"] = CreateLine(0)
             Items["BoxBottom"], Items["BoxBottomGradient"] = CreateLine(0)
-
-            Items["HealthOutline"] = Instances:Create("Frame", {
-                Parent = Items["Overlay"].Instance,
-                Name = "\0",
-                BackgroundColor3 = FromRGB(0, 0, 0),
-                BorderSizePixel = 0,
-                Size = UDim2New(0, 0, 0, 0),
-                Position = UDim2New(0, 0, 0, 0),
-                ZIndex = 6
-            })
 
             Items["HealthFill"] = Instances:Create("Frame", {
                 Parent = Items["Overlay"].Instance,
@@ -5759,7 +5723,7 @@ local Library do
             local FieldOfViewX = 2 * math.atan(math.tan(FieldOfView * 0.5) * Aspect)
             local DistanceForWidth = (math.max(Size.X, Size.Z) * 0.5) / math.tan(FieldOfViewX * 0.5)
 
-            ESPPreview.Distance = math.max(DistanceForHeight, DistanceForWidth) * 1.5
+            ESPPreview.Distance = math.max(DistanceForHeight, DistanceForWidth) * 1.7
             UpdateCamera()
         end
 
@@ -5779,6 +5743,36 @@ local Library do
 
                 if AvatarModel then
                     AvatarModel.Parent = WorldModel
+
+                    -- Accessory welds only snap onto the body once the model sits
+                    -- unanchored inside the world model for a frame. We anchored in
+                    -- PrepareModel before that, which froze handles at stale offsets,
+                    -- so unanchor, let them settle, then recenter and freeze again.
+                    for _, Descendant in ipairs(AvatarModel:GetDescendants()) do
+                        if Descendant:IsA("BasePart") then
+                            Descendant.Anchored = false
+                        end
+                    end
+
+                    RunService.Heartbeat:Wait()
+                    RunService.Heartbeat:Wait()
+
+                    local BoundingBox = AvatarModel:GetBoundingBox()
+                    AvatarModel:PivotTo(CFrame.new(-BoundingBox.Position) * AvatarModel:GetPivot())
+
+                    for _, Descendant in ipairs(AvatarModel:GetDescendants()) do
+                        if Descendant:IsA("BasePart") then
+                            Descendant.Anchored = true
+                        end
+                    end
+
+                    local Root = AvatarModel.PrimaryPart or AvatarModel:FindFirstChild("HumanoidRootPart")
+
+                    if Root then
+                        ESPPreview.Root = Root
+                        ESPPreview.RootOrigin = Root.CFrame
+                    end
+
                     ESPPreview.Model = AvatarModel
 
                     FitCamera(AvatarModel)
@@ -5845,7 +5839,7 @@ local Library do
             local Model = ESPPreview.Model
             local Overlay = Items["Overlay"].Instance
 
-            local AllItems = { "BoxOuter", "BoxInner", "BoxLeft", "BoxRight", "BoxTop", "BoxBottom", "HealthOutline", "HealthFill", "ESPName", "ESPTool", "ESPDistance" }
+            local AllItems = { "BoxLeft", "BoxRight", "BoxTop", "BoxBottom", "HealthFill", "ESPName", "ESPTool", "ESPDistance" }
 
             local function HideAll()
                 for _, Key in AllItems do
@@ -5903,20 +5897,15 @@ local Library do
 
             local White = FromRGB(255, 255, 255)
 
-            -- Box (gradient outline + black outer/inner)
+            -- Box (gradient outline)
             local ShowBox = Settings.Boxes
             if ShowBox == nil then ShowBox = true end
 
-            for _, Key in { "BoxOuter", "BoxInner", "BoxLeft", "BoxRight", "BoxTop", "BoxBottom" } do
+            for _, Key in { "BoxLeft", "BoxRight", "BoxTop", "BoxBottom" } do
                 Items[Key].Instance.Visible = ShowBox
             end
 
             if ShowBox then
-                Items["BoxOuter"].Instance.Position = UDim2New(0, BoxX - 1, 0, BoxY - 1)
-                Items["BoxOuter"].Instance.Size = UDim2New(0, BoxW + 2, 0, BoxH + 2)
-                Items["BoxInner"].Instance.Position = UDim2New(0, BoxX + 1, 0, BoxY + 1)
-                Items["BoxInner"].Instance.Size = UDim2New(0, BoxW - 2, 0, BoxH - 2)
-
                 Items["BoxLeft"].Instance.Position = UDim2New(0, BoxX, 0, BoxY)
                 Items["BoxLeft"].Instance.Size = UDim2New(0, 1, 0, BoxH)
                 Items["BoxRight"].Instance.Position = UDim2New(0, BoxX + BoxW - 1, 0, BoxY)
@@ -5958,7 +5947,6 @@ local Library do
             local ShowHealth = Settings.Healthbar
             if ShowHealth == nil then ShowHealth = true end
 
-            Items["HealthOutline"].Instance.Visible = ShowHealth
             Items["HealthFill"].Instance.Visible = ShowHealth
 
             if ShowHealth then
@@ -5972,9 +5960,6 @@ local Library do
                 local BarX = math.max(BoxX - Thickness - 4, 0)
                 local BarH = BoxH
                 local Fill = BarH * math.clamp(Health, 0, 1)
-
-                Items["HealthOutline"].Instance.Position = UDim2New(0, BarX - 1, 0, BoxY - 1)
-                Items["HealthOutline"].Instance.Size = UDim2New(0, Thickness + 2, 0, BarH + 2)
 
                 Items["HealthFill"].Instance.Position = UDim2New(0, BarX, 0, BoxY + (BarH - Fill))
                 Items["HealthFill"].Instance.Size = UDim2New(0, Thickness, 0, Fill)
