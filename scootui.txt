@@ -5131,9 +5131,14 @@ local Library do
             Distance = 10,
 
             Model = nil,
+
+            ESP = Data.ESP ~= false,
+            Label = nil,
+            Health = 1,
         }
 
         local PreviewPlayer = ESPPreview.Player
+        ESPPreview.Label = Data.Label or PreviewPlayer.Name
 
         local Items = { } do
             Items["Panel"] = Instances:Create("Frame", {
@@ -5156,7 +5161,7 @@ local Library do
                 BorderColor3 = FromRGB(0, 0, 0),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
-            })  Items["Header"]:MakeDraggable()
+            })
 
             Items["Title"] = Instances:Create("TextLabel", {
                 Parent = Items["Header"].Instance,
@@ -5232,6 +5237,83 @@ local Library do
             })
 
             Items["Viewport"].Instance.CurrentCamera = Items["Camera"].Instance
+
+            Items["Overlay"] = Instances:Create("Frame", {
+                Parent = Items["Panel"].Instance,
+                Name = "\0",
+                Position = UDim2New(0, 8, 0, 35),
+                Size = UDim2New(1, -16, 1, -63),
+                BackgroundTransparency = 1,
+                ClipsDescendants = true,
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })
+
+            Items["ESPBox"] = Instances:Create("Frame", {
+                Parent = Items["Overlay"].Instance,
+                Name = "\0",
+                BackgroundTransparency = 1,
+                BorderColor3 = FromRGB(0, 0, 0),
+                Size = UDim2New(0, 0, 0, 0),
+                Position = UDim2New(0, 0, 0, 0),
+                BorderSizePixel = 0,
+                ZIndex = 5,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })  Items["ESPBox"]:AddToTheme({BackgroundColor3 = "Accent"})
+
+            Items["ESPBoxStroke"] = Instances:Create("UIStroke", {
+                Parent = Items["ESPBox"].Instance,
+                Name = "\0",
+                Color = FromRGB(202, 243, 255),
+                Thickness = 1,
+                Transparency = 0,
+                LineJoinMode = Enum.LineJoinMode.Miter
+            })  Items["ESPBoxStroke"]:AddToTheme({Color = "Accent"})
+
+            Items["ESPName"] = Instances:Create("TextLabel", {
+                Parent = Items["Overlay"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                TextColor3 = FromRGB(235, 235, 235),
+                BorderColor3 = FromRGB(0, 0, 0),
+                Text = ESPPreview.Label,
+                AnchorPoint = Vector2New(0.5, 1),
+                Size = UDim2New(0, 0, 0, 15),
+                BackgroundTransparency = 1,
+                Position = UDim2New(0, 0, 0, 0),
+                BorderSizePixel = 0,
+                AutomaticSize = Enum.AutomaticSize.X,
+                TextSize = 9,
+                ZIndex = 6,
+                BackgroundColor3 = FromRGB(255, 255, 255)
+            })  Items["ESPName"]:AddToTheme({TextColor3 = "Text"})
+
+            Items["ESPNameStroke"] = Items["ESPName"]:TextBorder()
+
+            Items["ESPHealthBack"] = Instances:Create("Frame", {
+                Parent = Items["Overlay"].Instance,
+                Name = "\0",
+                BackgroundTransparency = 0.5,
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 1,
+                Size = UDim2New(0, 2, 0, 0),
+                Position = UDim2New(0, 0, 0, 0),
+                ZIndex = 6,
+                BackgroundColor3 = FromRGB(12, 12, 12)
+            })  Items["ESPHealthBack"]:AddToTheme({BackgroundColor3 = "Border"})
+
+            Items["ESPHealthFill"] = Instances:Create("Frame", {
+                Parent = Items["ESPHealthBack"].Instance,
+                Name = "\0",
+                AnchorPoint = Vector2New(0, 1),
+                Position = UDim2New(0, 0, 1, 0),
+                BorderSizePixel = 0,
+                Size = UDim2New(1, 0, 1, 0),
+                ZIndex = 7,
+                BackgroundColor3 = FromRGB(202, 243, 255)
+            })  Items["ESPHealthFill"]:AddToTheme({BackgroundColor3 = "Accent"})
         end
 
         local Camera = Items["Camera"].Instance
@@ -5324,6 +5406,15 @@ local Library do
                     Descendant.CanQuery = false
                     Descendant.CanTouch = false
                     Descendant.Massless = true
+
+                    -- The local character often has parts hidden by the camera scripts
+                    -- (head in first person) or by the game (arms while holding a weapon)
+                    -- via LocalTransparencyModifier. Reset it so the preview is fully visible.
+                    Descendant.LocalTransparencyModifier = 0
+
+                    if Descendant.Transparency >= 1 then
+                        Descendant.Transparency = 0
+                    end
                 end
             end
 
@@ -5489,6 +5580,8 @@ local Library do
             UpdateCamera()
         end
 
+        local UpdateOverlay
+
         local function LoadCharacter(Character)
             StopMirror()
 
@@ -5510,6 +5603,79 @@ local Library do
 
             FitCamera(Model)
             UpdateCamera()
+            UpdateOverlay()
+        end
+
+        local function Project(WorldPosition)
+            local Relative = Camera.CFrame:PointToObjectSpace(WorldPosition)
+
+            if Relative.Z >= 0 then 
+                return nil
+            end
+
+            local AbsoluteSize = Viewport.AbsoluteSize
+            local Aspect = AbsoluteSize.X / math.max(AbsoluteSize.Y, 1)
+            local TanY = math.tan(math.rad(Camera.FieldOfView) * 0.5)
+            local TanX = TanY * Aspect
+            local Depth = -Relative.Z
+
+            local ScreenX = (Relative.X / (Depth * TanX)) * (AbsoluteSize.X * 0.5) + AbsoluteSize.X * 0.5
+            local ScreenY = (-Relative.Y / (Depth * TanY)) * (AbsoluteSize.Y * 0.5) + AbsoluteSize.Y * 0.5
+
+            return Vector2New(ScreenX, ScreenY)
+        end
+
+        function UpdateOverlay()
+            local Model = ESPPreview.Model
+
+            if not Model or not ESPPreview.ESP then
+                return
+            end
+
+            local Character = PreviewPlayer.Character
+            local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+
+            if Humanoid and Humanoid.MaxHealth > 0 then
+                ESPPreview.Health = Humanoid.Health / Humanoid.MaxHealth
+            end
+
+            local BoxCFrame, BoxSize = Model:GetBoundingBox()
+            local Half = BoxSize * 0.5
+
+            local MinX, MinY = math.huge, math.huge
+            local MaxX, MaxY = -math.huge, -math.huge
+
+            for _, X in { -1, 1 } do
+                for _, Y in { -1, 1 } do
+                    for _, Z in { -1, 1 } do
+                        local Screen = Project(BoxCFrame * Vector3.new(Half.X * X, Half.Y * Y, Half.Z * Z))
+
+                        if Screen then
+                            MinX = math.min(MinX, Screen.X)
+                            MinY = math.min(MinY, Screen.Y)
+                            MaxX = math.max(MaxX, Screen.X)
+                            MaxY = math.max(MaxY, Screen.Y)
+                        end
+                    end
+                end
+            end
+
+            if MinX == math.huge then
+                return
+            end
+
+            local OverlaySize = Items["Overlay"].Instance.AbsoluteSize
+            local BoxX = math.clamp(MinX - 4, 0, OverlaySize.X)
+            local BoxY = math.clamp(MinY - 4, 0, OverlaySize.Y)
+            local BoxW = math.clamp(MaxX - MinX + 8, 0, OverlaySize.X - BoxX)
+            local BoxH = math.clamp(MaxY - MinY + 8, 0, OverlaySize.Y - BoxY)
+
+            Items["ESPBox"].Instance.Position = UDim2New(0, BoxX, 0, BoxY)
+            Items["ESPBox"].Instance.Size = UDim2New(0, BoxW, 0, BoxH)
+            Items["ESPName"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY)
+            Items["ESPHealthBack"].Instance.Position = UDim2New(0, BoxX - 5, 0, BoxY)
+            Items["ESPHealthBack"].Instance.Size = UDim2New(0, 2, 0, BoxH)
+            Items["ESPHealthFill"].Instance.Size = UDim2New(1, 0, math.clamp(ESPPreview.Health, 0, 1), 0)
         end
 
         function ESPPreview:SetTitle(Text)
@@ -5520,6 +5686,11 @@ local Library do
         function ESPPreview:SetVisibility(Bool)
             ESPPreview.IsOpen = Bool
             Items["Panel"].Instance.Visible = Bool
+        end
+
+        function ESPPreview:SetESP(Bool)
+            ESPPreview.ESP = Bool
+            Items["Overlay"].Instance.Visible = Bool
         end
 
         function ESPPreview:GetVisibility()
@@ -5565,6 +5736,41 @@ local Library do
             if ESPPreview.AutoSpin then
                 ESPPreview.SpinAngle += ESPPreview.SpinSpeed * DeltaTime
                 UpdateCamera()
+            end
+
+            UpdateOverlay()
+        end)
+
+        local Dragging = false
+        local DragStart
+        local DragOrigin
+
+        Items["Header"]:Connect("InputBegan", function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                Dragging = true
+                DragStart = Input.Position
+                DragOrigin = Items["Panel"].Instance.Position
+            end
+        end)
+
+        Library:Connect(UserInputService.InputChanged, function(Input)
+            if not Dragging or not DragStart then
+                return
+            end
+
+            if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
+                local Delta = Input.Position - DragStart
+
+                Items["Panel"].Instance.Position = UDim2New(
+                    DragOrigin.X.Scale, DragOrigin.X.Offset + Delta.X,
+                    DragOrigin.Y.Scale, DragOrigin.Y.Offset + Delta.Y
+                )
+            end
+        end)
+
+        Library:Connect(UserInputService.InputEnded, function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                Dragging = false
             end
         end)
 
