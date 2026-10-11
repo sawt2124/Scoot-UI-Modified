@@ -5395,7 +5395,7 @@ local Library do
             return Ids
         end
 
-        local function PrepareModel(Model)
+        local function PrepareModel(Model, AnchorAll)
             if not Model then
                 return nil
             end
@@ -5448,8 +5448,18 @@ local Library do
 
             local Root = Model.PrimaryPart or Model:FindFirstChild("HumanoidRootPart") or Model:FindFirstChildWhichIsA("BasePart")
 
-            if Root then
+            if AnchorAll then
+                -- Fully freeze the model in its standing pose.
+                for _, Descendant in Model:GetDescendants() do
+                    if Descendant:IsA("BasePart") then
+                        Descendant.Anchored = true
+                    end
+                end
+            elseif Root then
                 Root.Anchored = true
+            end
+
+            if Root then
                 ESPPreview.Root = Root
                 ESPPreview.RootOrigin = Root.CFrame
             end
@@ -5463,7 +5473,7 @@ local Library do
             local Model = Character:Clone()
             Character.Archivable = OriginalArchivable
 
-            return PrepareModel(Model)
+            return PrepareModel(Model, false)
         end
 
         local function BuildAvatarModel(UserId)
@@ -5489,8 +5499,21 @@ local Library do
             -- Parenting under the camera resolves them without the avatar flashing in world.
             Model.Parent = Workspace.CurrentCamera or Camera
             RunService.Heartbeat:Wait()
+            RunService.Heartbeat:Wait()
 
-            return PrepareModel(Model)
+            -- Safety net: if accessory welds still haven't resolved (bounding box
+            -- absurdly large), drop the accessories so the body always fits the view.
+            local _, BoundSize = Model:GetBoundingBox()
+
+            if BoundSize.Magnitude > 30 then
+                for _, Child in ipairs(Model:GetChildren()) do
+                    if Child:IsA("Accessory") then
+                        Child:Destroy()
+                    end
+                end
+            end
+
+            return PrepareModel(Model, true)
         end
 
         local function PlayIdle(Model)
@@ -5695,8 +5718,6 @@ local Library do
                 if AvatarModel then
                     AvatarModel.Parent = WorldModel
                     ESPPreview.Model = AvatarModel
-
-                    PlayIdle(AvatarModel)
 
                     FitCamera(AvatarModel)
                     UpdateCamera()
