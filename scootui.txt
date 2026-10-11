@@ -5124,6 +5124,7 @@ local Library do
             IsOpen = true,
 
             Player = Data.Player or LocalPlayer,
+            UserId = tonumber(Data.UserId or Data.UserID or Data.userid) or nil,
 
             SpinAngle = math.rad(-25),
             SpinSpeed = Data.SpinSpeed or math.rad(18),
@@ -5135,10 +5136,19 @@ local Library do
             ESP = Data.ESP ~= false,
             Label = nil,
             Health = 1,
+            IdleTrack = nil,
         }
 
         local PreviewPlayer = ESPPreview.Player
         ESPPreview.Label = Data.Label or PreviewPlayer.Name
+
+        if ESPPreview.UserId then 
+            local Success, UserName = pcall(function()
+                return Players:GetNameFromUserIdAsync(ESPPreview.UserId)
+            end)
+
+            ESPPreview.Label = Data.Label or (Success and UserName) or ("User " .. tostring(ESPPreview.UserId))
+        end
 
         local Items = { } do
             Items["Panel"] = Instances:Create("Frame", {
@@ -5383,12 +5393,7 @@ local Library do
             return Ids
         end
 
-        local function BuildPreviewModel(Character)
-            local OriginalArchivable = Character.Archivable
-            Character.Archivable = true
-            local Model = Character:Clone()
-            Character.Archivable = OriginalArchivable
-
+        local function PrepareModel(Model)
             if not Model then
                 return nil
             end
@@ -5446,6 +5451,69 @@ local Library do
             end
 
             return Model
+        end
+
+        local function BuildPreviewModel(Character)
+            local OriginalArchivable = Character.Archivable
+            Character.Archivable = true
+            local Model = Character:Clone()
+            Character.Archivable = OriginalArchivable
+
+            return PrepareModel(Model)
+        end
+
+        local function BuildAvatarModel(UserId)
+            local Model
+
+            local Success = pcall(function()
+                Model = Players:CreateHumanoidModelFromUserId(UserId)
+            end)
+
+            if not Success or not Model then
+                Success = pcall(function()
+                    Model = Players:GetCharacterAppearanceAsync(UserId)
+                end)
+            end
+
+            if not Success or not Model then
+                return nil
+            end
+
+            return PrepareModel(Model)
+        end
+
+        local function PlayIdle(Model)
+            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
+
+            if not Humanoid then
+                return
+            end
+
+            local Animator = Humanoid:FindFirstChildOfClass("Animator")
+
+            if not Animator then
+                Animator = Instances:Create("Animator", { Parent = Humanoid, Name = "\0" }).Instance
+            end
+
+            local IdleId = Humanoid.RigType == Enum.HumanoidRigType.R6 and "rbxassetid://180435571" or "rbxassetid://507766666"
+
+            local Animation = Instance.new("Animation")
+            Animation.AnimationId = IdleId
+
+            local Success, Track = pcall(function()
+                return Animator:LoadAnimation(Animation)
+            end)
+
+            if Success and Track then
+                Track.Looped = true
+                Track.Priority = Enum.AnimationPriority.Idle
+
+                pcall(function()
+                    Track:Play(0)
+                end)
+
+                ESPPreview.IdleTrack = Track
+            end
         end
 
         local function StartMirror(Character, Model, FallbackIds)
@@ -5587,6 +5655,28 @@ local Library do
 
             WorldModel:ClearAllChildren()
             ESPPreview.Model = nil
+            ESPPreview.IdleTrack = nil
+
+            if ESPPreview.UserId then
+                local AvatarModel = BuildAvatarModel(ESPPreview.UserId)
+
+                if AvatarModel then
+                    AvatarModel.Parent = WorldModel
+                    ESPPreview.Model = AvatarModel
+
+                    PlayIdle(AvatarModel)
+
+                    FitCamera(AvatarModel)
+                    UpdateCamera()
+                    UpdateOverlay()
+                end
+
+                return
+            end
+
+            if not Character then
+                return
+            end
 
             local AnimationIds = CollectAnimationIds(Character)
 
@@ -5632,8 +5722,7 @@ local Library do
                 return
             end
 
-            local Character = PreviewPlayer.Character
-            local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+            local Humanoid = Model:FindFirstChildOfClass("Humanoid")
 
             if Humanoid and Humanoid.MaxHealth > 0 then
                 ESPPreview.Health = Humanoid.Health / Humanoid.MaxHealth
@@ -5698,7 +5787,9 @@ local Library do
         end
 
         function ESPPreview:Refresh()
-            if TargetCharacter then
+            if ESPPreview.UserId then
+                LoadCharacter(nil)
+            elseif TargetCharacter then
                 LoadCharacter(TargetCharacter)
             end
         end
@@ -5709,20 +5800,30 @@ local Library do
             ESPPreview.Model = nil
         end
 
-        Library:Thread(function()
-            while true do
-                local Character = PreviewPlayer.Character or PreviewPlayer.CharacterAdded:Wait()
-                Character:WaitForChild("Humanoid", 10)
-
+        if ESPPreview.UserId then
+            Library:Thread(function()
                 if not Items["Panel"].Instance or not Items["Panel"].Instance.Parent then
-                    break
+                    return
                 end
 
-                TargetCharacter = Character
-                LoadCharacter(Character)
-                PreviewPlayer.CharacterAdded:Wait()
-            end
-        end)
+                LoadCharacter(nil)
+            end)
+        else
+            Library:Thread(function()
+                while true do
+                    local Character = PreviewPlayer.Character or PreviewPlayer.CharacterAdded:Wait()
+                    Character:WaitForChild("Humanoid", 10)
+
+                    if not Items["Panel"].Instance or not Items["Panel"].Instance.Parent then
+                        break
+                    end
+
+                    TargetCharacter = Character
+                    LoadCharacter(Character)
+                    PreviewPlayer.CharacterAdded:Wait()
+                end
+            end)
+        end
 
         Library:Connect(Viewport:GetPropertyChangedSignal("AbsoluteSize"), function()
             FitCamera(ESPPreview.Model)
