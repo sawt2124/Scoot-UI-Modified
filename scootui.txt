@@ -6362,20 +6362,6 @@ local Library do
             })
             Window.TopLogoDecorator = Items["Decorator"].Instance
 
-            Items["CursorDecorator"] = Instances:Create("ImageLabel", {
-                Parent = Items["Window"].Instance,
-                Name = "CursorDecorator",
-                BackgroundTransparency = 1,
-                BorderSizePixel = 0,
-                AnchorPoint = Vector2New(0.5, 0.5),
-                Position = UDim2New(0, 0, 0, 0),
-                Size = UDim2New(0, 120, 0, 120),
-                Visible = false,
-                ZIndex = 100,
-                ScaleType = Enum.ScaleType.Fit,
-            })
-            Window.CursorDecorator = Items["CursorDecorator"].Instance
-
             Items["MenuPattern"] = Instances:Create("Frame", {
                 Parent = Library.Holder.Instance,
                 Name = "MenuPattern",
@@ -6641,6 +6627,13 @@ local Library do
 
         function Window:SetMenuPattern(Bool)
             Window.MenuPatternEnabled = Bool
+
+            if Items["Window"] then
+                if Window.BaseBg == nil then
+                    Window.BaseBg = Items["Window"].Instance.BackgroundTransparency
+                end
+                Items["Window"].Instance.BackgroundTransparency = Bool and 0 or Window.BaseBg
+            end
 
             if Items["MenuPattern"] then
                 Items["MenuPattern"].Instance.Visible = Bool and Window.IsOpen == true
