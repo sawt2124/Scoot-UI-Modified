@@ -6324,7 +6324,8 @@ local Library do
                 BorderColor3 = FromRGB(42, 49, 45),
                 Size = UDim2New(0, 200, 1, -24),
                 BorderSizePixel = 2,
-                BackgroundColor3 = FromRGB(20, 24, 21)
+                BackgroundColor3 = FromRGB(20, 24, 21),
+                ZIndex = 3
             })  Items["Side"]:AddToTheme({BackgroundColor3 = "Inline", BorderColor3 = "Outline"})
             
             Items["Side"]:Border("Border")
@@ -6375,6 +6376,50 @@ local Library do
                 ScaleType = Enum.ScaleType.Fit,
             })
             Window.CursorDecorator = Items["CursorDecorator"].Instance
+
+            Items["MenuPattern"] = Instances:Create("Frame", {
+                Parent = Items["Window"].Instance,
+                Name = "MenuPattern",
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Size = UDim2New(1, 0, 1, 0),
+                ZIndex = 2,
+                ClipsDescendants = true,
+                Visible = false,
+            })
+
+            local PatternSpin = Instances:Create("Frame", {
+                Parent = Items["MenuPattern"].Instance,
+                Name = "\0",
+                BackgroundTransparency = 1,
+                AnchorPoint = Vector2New(0.5, 0.5),
+                Position = UDim2New(0.5, 0, 0.5, 0),
+                Size = UDim2New(2.4, 0, 2.4, 0),
+                Rotation = 45,
+                ZIndex = 1,
+            })
+
+            for PatternRow = 0, 22 do
+                local PatternOffset = (PatternRow % 2 == 0) and 0 or 150
+                for PatternCol = 0, 15 do
+                    Instances:Create("TextLabel", {
+                        Parent = PatternSpin,
+                        Name = "\0",
+                        BackgroundTransparency = 1,
+                        Text = "Function.Meta",
+                        Font = Enum.Font.Code,
+                        TextSize = 22,
+                        TextColor3 = FromRGB(255, 255, 255),
+                        TextTransparency = 0.93,
+                        Size = UDim2New(0, 240, 0, 34),
+                        Position = UDim2New(0, PatternCol * 260 + PatternOffset, 0, PatternRow * 48),
+                        TextXAlignment = Enum.TextXAlignment.Left,
+                        ZIndex = 2,
+                    })
+                end
+            end
+
+            Window.MenuPattern = Items["MenuPattern"].Instance
 
             Items["Search"] = Instances:Create("Frame", {
                 Parent = Items["Side"].Instance,
@@ -6489,7 +6534,8 @@ local Library do
                 BorderColor3 = FromRGB(0, 0, 0),
                 Size = UDim2New(1, -238, 1, -24),
                 BorderSizePixel = 0,
-                BackgroundColor3 = FromRGB(255, 255, 255)
+                BackgroundColor3 = FromRGB(255, 255, 255),
+                ZIndex = 3
             })
 
             Items["MouseBackground"] = Instances:Create("Frame", {
@@ -6575,12 +6621,37 @@ local Library do
             Items["Logo"].Instance.Image = Library:ResolveImage(Link, "Logo")
         end
 
+        function Window:SetMenuPattern(Bool)
+            Window.MenuPatternEnabled = Bool
+
+            if Items["MenuPattern"] then
+                Items["MenuPattern"].Instance.Visible = Bool and Window.IsOpen
+            end
+
+            if Bool then
+                if not Library.MenuBlur then
+                    local Blur = Instance.new("BlurEffect")
+                    Blur.Name = "MenuBlur"
+                    Blur.Size = 4
+                    Blur.Parent = game:GetService("Lighting")
+                    Library.MenuBlur = Blur
+                end
+            elseif Library.MenuBlur then
+                Library.MenuBlur:Destroy()
+                Library.MenuBlur = nil
+            end
+        end
+
         function Window:SetOpen(Bool)
             if Debounce then 
                 return
             end
 
             Window.IsOpen = Bool
+
+            if Items["MenuPattern"] then
+                Items["MenuPattern"].Instance.Visible = Window.MenuPatternEnabled and Bool
+            end
 
             Debounce = true 
 
@@ -7916,6 +7987,15 @@ local Library do
                             if Window.TopLogoDecorator then
                                 Window.TopLogoDecorator.Visible = Value
                             end
+                        end
+                    })
+
+                    MenuSection:Toggle({
+                        Name = "Menu pattern",
+                        Flag = "MenuPattern",
+                        Default = false,
+                        Callback = function(Value)
+                            Window:SetMenuPattern(Value)
                         end
                     })
 
