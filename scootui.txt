@@ -6393,33 +6393,42 @@ local Library do
                 BackgroundTransparency = 1,
                 AnchorPoint = Vector2New(0.5, 0.5),
                 Position = UDim2New(0.5, 0, 0.5, 0),
-                Size = UDim2New(2.4, 0, 2.4, 0),
+                Size = UDim2New(2.6, 0, 2.6, 0),
                 Rotation = 45,
                 ZIndex = 1,
             })
 
-            for PatternRow = 0, 22 do
-                local PatternOffset = (PatternRow % 2 == 0) and 0 or 150
-                for PatternCol = 0, 15 do
-                    Instances:Create("TextLabel", {
-                        Parent = PatternSpin.Instance,
-                        Name = "\0",
-                        BackgroundTransparency = 1,
-                        Text = "Function.Meta",
-                        Font = Enum.Font.Code,
-                        TextSize = 22,
-                        TextColor3 = FromRGB(255, 255, 255),
-                        TextTransparency = 0.93,
-                        Size = UDim2New(0, 240, 0, 34),
-                        Position = UDim2New(0, PatternCol * 260 + PatternOffset, 0, PatternRow * 48),
-                        TextXAlignment = Enum.TextXAlignment.Left,
-                        ZIndex = 2,
-                    })
-                end
+            Window.PatternRows = {}
+            for PatternRow = 0, 34 do
+                local Row = Instances:Create("Frame", {
+                    Parent = PatternSpin.Instance,
+                    Name = "\0",
+                    BackgroundTransparency = 1,
+                    ClipsDescendants = true,
+                    BorderSizePixel = 0,
+                    Size = UDim2New(1, 0, 0, 46),
+                    Position = UDim2New(0, 0, 0, PatternRow * 46),
+                    ZIndex = 1,
+                })
+                local RowText = Instances:Create("TextLabel", {
+                    Parent = Row.Instance,
+                    Name = "\0",
+                    BackgroundTransparency = 1,
+                    Text = string.rep("Function.Meta   ", 24),
+                    Font = Enum.Font.Code,
+                    TextSize = 22,
+                    TextColor3 = FromRGB(255, 255, 255),
+                    TextTransparency = 0,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                    TextYAlignment = Enum.TextYAlignment.Center,
+                    Size = UDim2New(0, 9000, 1, 0),
+                    Position = UDim2New(0, 0, 0, 0),
+                    ZIndex = 2,
+                })
+                Window.PatternRows[PatternRow + 1] = RowText.Instance
             end
 
             Window.MenuPattern = Items["MenuPattern"].Instance
-            Window.PatternSpin = PatternSpin.Instance
 
             Items["Search"] = Instances:Create("Frame", {
                 Parent = Items["Side"].Instance,
@@ -6620,14 +6629,10 @@ local Library do
             Items["Logo"].Instance.Image = Library:ResolveImage(Link, "Logo")
         end
 
-        function Window:SetMenuPattern(Bool)
-            Window.MenuPatternEnabled = Bool
+        function Window:UpdateMenuBlur()
+            local Want = Window.MenuPatternEnabled and Window.IsOpen == true
 
-            if Items["MenuPattern"] then
-                Items["MenuPattern"].Instance.Visible = Bool and Window.IsOpen
-            end
-
-            if Bool then
+            if Want then
                 if not Library.MenuBlur then
                     local Blur = Instance.new("BlurEffect")
                     Blur.Name = "MenuBlur"
@@ -6635,28 +6640,39 @@ local Library do
                     Blur.Parent = game:GetService("Lighting")
                     Library.MenuBlur = Blur
                 end
+            elseif Library.MenuBlur then
+                Library.MenuBlur:Destroy()
+                Library.MenuBlur = nil
+            end
+        end
 
-                if not Library.MenuPatternConn and Window.PatternSpin then
-                    local Spin = Window.PatternSpin
-                    local Offset = 0
+        function Window:SetMenuPattern(Bool)
+            Window.MenuPatternEnabled = Bool
+
+            if Items["MenuPattern"] then
+                Items["MenuPattern"].Instance.Visible = Bool and Window.IsOpen == true
+            end
+
+            if Bool then
+                if not Library.MenuPatternConn and Window.PatternRows then
+                    local Rows = Window.PatternRows
+                    local Tick = 0
                     Library.MenuPatternConn = game:GetService("RunService").RenderStepped:Connect(function(dt)
-                        if not Window.MenuPatternEnabled then
-                            return
+                        Tick = Tick + dt
+                        for Index, Row in ipairs(Rows) do
+                            if Row and Row.Parent then
+                                local Direction = (Index % 2 == 0) and 1 or -1
+                                Row.Position = UDim2New(0, (Tick * 60 * Direction) % 4000, 0, 0)
+                            end
                         end
-                        Offset = Offset + dt * 10
-                        Spin.Position = UDim2New(0.5, Offset % 260, 0.5, (Offset * 0.45) % 120)
                     end)
                 end
-            else
-                if Library.MenuBlur then
-                    Library.MenuBlur:Destroy()
-                    Library.MenuBlur = nil
-                end
-                if Library.MenuPatternConn then
-                    Library.MenuPatternConn:Disconnect()
-                    Library.MenuPatternConn = nil
-                end
+            elseif Library.MenuPatternConn then
+                Library.MenuPatternConn:Disconnect()
+                Library.MenuPatternConn = nil
             end
+
+            Window:UpdateMenuBlur()
         end
 
         function Window:SetOpen(Bool)
@@ -6669,6 +6685,8 @@ local Library do
             if Items["MenuPattern"] then
                 Items["MenuPattern"].Instance.Visible = Window.MenuPatternEnabled and Bool
             end
+
+            Window:UpdateMenuBlur()
 
             Debounce = true 
 
