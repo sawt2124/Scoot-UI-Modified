@@ -6324,8 +6324,7 @@ local Library do
                 BorderColor3 = FromRGB(42, 49, 45),
                 Size = UDim2New(0, 200, 1, -24),
                 BorderSizePixel = 2,
-                BackgroundColor3 = FromRGB(20, 24, 21),
-                ZIndex = 3
+                BackgroundColor3 = FromRGB(20, 24, 21)
             })  Items["Side"]:AddToTheme({BackgroundColor3 = "Inline", BorderColor3 = "Outline"})
             
             Items["Side"]:Border("Border")
@@ -6378,12 +6377,12 @@ local Library do
             Window.CursorDecorator = Items["CursorDecorator"].Instance
 
             Items["MenuPattern"] = Instances:Create("Frame", {
-                Parent = Items["Window"].Instance,
+                Parent = Library.Holder.Instance,
                 Name = "MenuPattern",
                 BackgroundTransparency = 1,
                 BorderSizePixel = 0,
                 Size = UDim2New(1, 0, 1, 0),
-                ZIndex = 2,
+                ZIndex = 0,
                 ClipsDescendants = true,
                 Visible = false,
             })
@@ -6420,6 +6419,7 @@ local Library do
             end
 
             Window.MenuPattern = Items["MenuPattern"].Instance
+            Window.PatternSpin = PatternSpin.Instance
 
             Items["Search"] = Instances:Create("Frame", {
                 Parent = Items["Side"].Instance,
@@ -6534,8 +6534,7 @@ local Library do
                 BorderColor3 = FromRGB(0, 0, 0),
                 Size = UDim2New(1, -238, 1, -24),
                 BorderSizePixel = 0,
-                BackgroundColor3 = FromRGB(255, 255, 255),
-                ZIndex = 3
+                BackgroundColor3 = FromRGB(255, 255, 255)
             })
 
             Items["MouseBackground"] = Instances:Create("Frame", {
@@ -6632,13 +6631,31 @@ local Library do
                 if not Library.MenuBlur then
                     local Blur = Instance.new("BlurEffect")
                     Blur.Name = "MenuBlur"
-                    Blur.Size = 4
+                    Blur.Size = 14
                     Blur.Parent = game:GetService("Lighting")
                     Library.MenuBlur = Blur
                 end
-            elseif Library.MenuBlur then
-                Library.MenuBlur:Destroy()
-                Library.MenuBlur = nil
+
+                if not Library.MenuPatternConn and Window.PatternSpin then
+                    local Spin = Window.PatternSpin
+                    local Offset = 0
+                    Library.MenuPatternConn = game:GetService("RunService").RenderStepped:Connect(function(dt)
+                        if not Window.MenuPatternEnabled then
+                            return
+                        end
+                        Offset = Offset + dt * 10
+                        Spin.Position = UDim2New(0.5, Offset % 260, 0.5, (Offset * 0.45) % 120)
+                    end)
+                end
+            else
+                if Library.MenuBlur then
+                    Library.MenuBlur:Destroy()
+                    Library.MenuBlur = nil
+                end
+                if Library.MenuPatternConn then
+                    Library.MenuPatternConn:Disconnect()
+                    Library.MenuPatternConn = nil
+                end
             end
         end
 
@@ -7977,18 +7994,6 @@ local Library do
                             end
                         })
                     end
-
-                    MenuSection:Toggle({
-                        Name = "Function.Meta logo",
-                        Flag = "FunctionMetaLogo",
-                        Default = true,
-                        Callback = function(Value)
-                            getgenv().FunctionMetaVisible = Value
-                            if Window.TopLogoDecorator then
-                                Window.TopLogoDecorator.Visible = Value
-                            end
-                        end
-                    })
 
                     MenuSection:Toggle({
                         Name = "Menu pattern",
