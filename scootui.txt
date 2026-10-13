@@ -6642,13 +6642,6 @@ local Library do
         function Window:SetMenuPattern(Bool)
             Window.MenuPatternEnabled = Bool
 
-            if Items["Window"] then
-                if Window.BaseBg == nil then
-                    Window.BaseBg = Items["Window"].Instance.BackgroundTransparency
-                end
-                Items["Window"].Instance.BackgroundTransparency = Bool and 0 or Window.BaseBg
-            end
-
             if Items["MenuPattern"] then
                 Items["MenuPattern"].Instance.Visible = Bool and Window.IsOpen == true
             end
