@@ -6393,39 +6393,32 @@ local Library do
                 BackgroundTransparency = 1,
                 AnchorPoint = Vector2New(0.5, 0.5),
                 Position = UDim2New(0.5, 0, 0.5, 0),
-                Size = UDim2New(2.6, 0, 2.6, 0),
+                Size = UDim2New(5, 0, 5, 0),
                 Rotation = 45,
                 ZIndex = 1,
             })
 
+            local PatternImage = Library:ResolveImage("https://i.ibb.co/hJVzRCbZ/Function-meta-Minimal-Tech-Wordmark-removebg-preview.png", "Decorator")
+            Window.PatternTile = 210
             Window.PatternRows = {}
-            for PatternRow = 0, 34 do
-                local Row = Instances:Create("Frame", {
+
+            local RowHeight = 58
+            for PatternRow = 0, 100 do
+                local Row = Instances:Create("ImageLabel", {
                     Parent = PatternSpin.Instance,
                     Name = "\0",
                     BackgroundTransparency = 1,
-                    ClipsDescendants = true,
                     BorderSizePixel = 0,
-                    Size = UDim2New(1, 0, 0, 46),
-                    Position = UDim2New(0, 0, 0, PatternRow * 46),
+                    Image = PatternImage,
+                    ImageColor3 = FromRGB(255, 255, 255),
+                    ImageTransparency = 0,
+                    ScaleType = Enum.ScaleType.Tile,
+                    TileSize = UDim2New(0, 210, 0, RowHeight),
+                    Size = UDim2New(0, 16000, 0, RowHeight),
+                    Position = UDim2New(0, 0, 0, PatternRow * RowHeight),
                     ZIndex = 1,
                 })
-                local RowText = Instances:Create("TextLabel", {
-                    Parent = Row.Instance,
-                    Name = "\0",
-                    BackgroundTransparency = 1,
-                    Text = string.rep("Function.Meta   ", 24),
-                    Font = Enum.Font.Code,
-                    TextSize = 22,
-                    TextColor3 = FromRGB(255, 255, 255),
-                    TextTransparency = 0,
-                    TextXAlignment = Enum.TextXAlignment.Left,
-                    TextYAlignment = Enum.TextYAlignment.Center,
-                    Size = UDim2New(0, 9000, 1, 0),
-                    Position = UDim2New(0, 0, 0, 0),
-                    ZIndex = 2,
-                })
-                Window.PatternRows[PatternRow + 1] = RowText.Instance
+                Window.PatternRows[PatternRow + 1] = Row.Instance
             end
 
             Window.MenuPattern = Items["MenuPattern"].Instance
@@ -6649,6 +6642,13 @@ local Library do
         function Window:SetMenuPattern(Bool)
             Window.MenuPatternEnabled = Bool
 
+            if Items["Window"] then
+                if Window.BaseBg == nil then
+                    Window.BaseBg = Items["Window"].Instance.BackgroundTransparency
+                end
+                Items["Window"].Instance.BackgroundTransparency = Bool and 0 or Window.BaseBg
+            end
+
             if Items["MenuPattern"] then
                 Items["MenuPattern"].Instance.Visible = Bool and Window.IsOpen == true
             end
@@ -6656,13 +6656,14 @@ local Library do
             if Bool then
                 if not Library.MenuPatternConn and Window.PatternRows then
                     local Rows = Window.PatternRows
+                    local Tile = Window.PatternTile or 210
                     local Tick = 0
                     Library.MenuPatternConn = game:GetService("RunService").RenderStepped:Connect(function(dt)
                         Tick = Tick + dt
                         for Index, Row in ipairs(Rows) do
                             if Row and Row.Parent then
                                 local Direction = (Index % 2 == 0) and 1 or -1
-                                Row.Position = UDim2New(0, (Tick * 60 * Direction) % 4000, 0, 0)
+                                Row.Position = UDim2New(0, (Tick * 60 * Direction) % Tile, 0, 0)
                             end
                         end
                     end)
