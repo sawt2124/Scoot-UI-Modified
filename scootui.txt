@@ -1363,8 +1363,8 @@ local Library do
                     Instances:Create("UIPadding", {
                         Parent = Items["SubPages"].Instance,
                         Name = "\0",
-                        PaddingRight = UDimNew(0, 7),
-                        PaddingLeft = UDimNew(0, 7)
+                        PaddingRight = UDimNew(0, 4),
+                        PaddingLeft = UDimNew(0, 4)
                     })
 
                     Instances:Create("UIListLayout", {
@@ -1372,7 +1372,7 @@ local Library do
                         Name = "\0",
                         VerticalAlignment = Enum.VerticalAlignment.Center,
                         FillDirection = Enum.FillDirection.Horizontal,
-                        Padding = UDimNew(0, 12),
+                        Padding = UDimNew(0, 6),
                         SortOrder = Enum.SortOrder.LayoutOrder
                     })
 
@@ -1572,16 +1572,16 @@ local Library do
                 Instances:Create("UIPadding", {
                     Parent = Items["Text"].Instance,
                     Name = "\0",
-                    PaddingRight = UDimNew(0, 8),
-                    PaddingLeft = UDimNew(0, 8)
+                    PaddingRight = UDimNew(0, 5),
+                    PaddingLeft = UDimNew(0, 5)
                 })
 
                 Instances:Create("UIPadding", {
                     Parent = Items["Inactive"].Instance,
                     Name = "\0",
                     PaddingTop = UDimNew(0, 2),
-                    PaddingLeft = UDimNew(0, 18),
-                    PaddingRight = UDimNew(0, 12)
+                    PaddingLeft = UDimNew(0, 12),
+                    PaddingRight = UDimNew(0, 8)
                 })
 
                 Items["Glow"] = Instances:Create("Frame", {
@@ -6340,13 +6340,27 @@ local Library do
                 AnchorPoint = Vector2New(0.5, 0),
                 Image = Library:ResolveImage(Window.Logo, "Logo"),
                 BackgroundTransparency = 1,
-                Position = UDim2New(0.5, 0, 0, 12),
-                Size = UDim2New(0, 75, 0, 75),
+                Position = UDim2New(0.5, 0, 0, 10),
+                Size = UDim2New(0, 94, 0, 94),
                 BorderSizePixel = 0,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  if Window.LogoTint then 
                 Items["Logo"]:AddToTheme({ImageColor3 = "Accent"})
             end
+
+            Items["Decorator"] = Instances:Create("ImageLabel", {
+                Parent = Items["Window"].Instance,
+                Name = "TopLogoDecorator",
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                AnchorPoint = Vector2New(0.5, 0),
+                Position = UDim2New(0.5, 340, 0, 0),
+                Size = UDim2New(0, 120, 0, 120),
+                Visible = false,
+                ZIndex = 50,
+                ScaleType = Enum.ScaleType.Fit,
+            })
+            Window.TopLogoDecorator = Items["Decorator"].Instance
 
             Items["Search"] = Instances:Create("Frame", {
                 Parent = Items["Side"].Instance,
@@ -6426,7 +6440,7 @@ local Library do
             Instances:Create("UIListLayout", {
                 Parent = Items["Pages"].Instance,
                 Name = "\0",
-                Padding = UDimNew(0, 8),
+                Padding = UDimNew(0, 6),
                 SortOrder = Enum.SortOrder.LayoutOrder
             })
 
