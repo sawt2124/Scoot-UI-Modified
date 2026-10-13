@@ -6357,10 +6357,24 @@ local Library do
                 Position = UDim2New(0.5, 340, 0, 0),
                 Size = UDim2New(0, 120, 0, 120),
                 Visible = false,
-                ZIndex = 50,
+                ZIndex = 0,
                 ScaleType = Enum.ScaleType.Fit,
             })
             Window.TopLogoDecorator = Items["Decorator"].Instance
+
+            Items["CursorDecorator"] = Instances:Create("ImageLabel", {
+                Parent = Items["Window"].Instance,
+                Name = "CursorDecorator",
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                AnchorPoint = Vector2New(0.5, 0.5),
+                Position = UDim2New(0, 0, 0, 0),
+                Size = UDim2New(0, 120, 0, 120),
+                Visible = false,
+                ZIndex = 100,
+                ScaleType = Enum.ScaleType.Fit,
+            })
+            Window.CursorDecorator = Items["CursorDecorator"].Instance
 
             Items["Search"] = Instances:Create("Frame", {
                 Parent = Items["Side"].Instance,
@@ -7892,6 +7906,18 @@ local Library do
                             end
                         })
                     end
+
+                    MenuSection:Toggle({
+                        Name = "Function.Meta logo",
+                        Flag = "FunctionMetaLogo",
+                        Default = true,
+                        Callback = function(Value)
+                            getgenv().FunctionMetaVisible = Value
+                            if Window.TopLogoDecorator then
+                                Window.TopLogoDecorator.Visible = Value
+                            end
+                        end
+                    })
 
                     local FontItems = { }
 
