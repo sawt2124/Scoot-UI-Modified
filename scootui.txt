@@ -4312,7 +4312,11 @@ local Library do
                 Keybind:SetOpen(not Keybind.IsOpen)
             end)
 
-            Library:Connect(UserInputService.InputBegan, function(Input)
+            Library:Connect(UserInputService.InputBegan, function(Input, GameProcessed)
+                if GameProcessed or UserInputService:GetFocusedTextBox() then
+                    return
+                end
+
                 if Keybind.Value == "None" then
                     return
                 end
@@ -6715,7 +6719,11 @@ local Library do
             end)
         end
 
-        Library:Connect(UserInputService.InputBegan, function(Input)
+        Library:Connect(UserInputService.InputBegan, function(Input, GameProcessed)
+            if GameProcessed or UserInputService:GetFocusedTextBox() then
+                return
+            end
+
             if tostring(Input.KeyCode) == Library.MenuKeybind or tostring(Input.UserInputType) == Library.MenuKeybind then
                 Window:SetOpen(not Window.IsOpen)
             end
