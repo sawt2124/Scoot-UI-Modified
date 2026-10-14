@@ -2,7 +2,11 @@
     scoot ui library
     made by samet
     https://discord.gg/VhvTd5HV8d
+    modified by sawt2224 (@sawt2424)
+    this ui is open source. modified for function.meta and partially with ai.
+    you can use whatevers here, i added some cool stuff to this so im lowkey proud
 
+    Credits to the absolute goat sametexe001 for this goated ass ui though!
     example/documentation is at the bottom
 ]]
 
@@ -1003,7 +1007,8 @@ local Library do
     end
 
     Library.Connect = function(self, Event, Callback, Name)
-        Name = Name or StringFormat("Connection%s%s", self.UnnamedConnections + 1, HttpService:GenerateGUID(false))
+        self.UnnamedConnections = (self.UnnamedConnections or 0) + 1
+        Name = Name or StringFormat("Connection%s", self.UnnamedConnections)
 
         local NewConnection = {
             Event = Event,
@@ -1012,9 +1017,13 @@ local Library do
             Connection = nil
         }
 
-        Library:Thread(function()
-            NewConnection.Connection = Event:Connect(Callback)
+        local Ok, Connection = pcall(function()
+            return Event:Connect(Callback)
         end)
+
+        if Ok and Connection then
+            NewConnection.Connection = Connection
+        end
 
         TableInsert(self.Connections, NewConnection)
         return NewConnection
@@ -6649,6 +6658,9 @@ local Library do
                     local Tile = Window.PatternTile or 210
                     local Tick = 0
                     Library.MenuPatternConn = game:GetService("RunService").RenderStepped:Connect(function(dt)
+                        if not Window.IsOpen then
+                            return
+                        end
                         Tick = Tick + dt
                         for Index, Row in ipairs(Rows) do
                             if Row and Row.Parent then
