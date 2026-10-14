@@ -6601,10 +6601,10 @@ local Library do
             Window.MenuPatternEnabled = Bool
 
             if Items["Window"] then
-                if Window.BaseBg == nil then
-                    Window.BaseBg = Items["Window"].Instance.BackgroundTransparency
-                end
-                Items["Window"].Instance.BackgroundTransparency = Bool and 0 or Window.BaseBg
+                -- Always force the window opaque. Never inherit the lazily-captured BaseBg, which
+                -- could be a transient fade value (1) and leave the background transparent.
+                Window.BaseBg = 0
+                Items["Window"].Instance.BackgroundTransparency = 0
             end
 
             if Items["MenuPattern"] then
