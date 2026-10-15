@@ -784,10 +784,10 @@ local Library do
 
     local CustomFont = { } do
         function CustomFont:New(Id, Weight, Style, Data)
-            if isfile(Library.Folders.Assets .. "/" .. Id .. ".json") then
-                return Font.new(getcustomasset(Library.Folders.Assets .. "/" .. Id .. ".json"))
-            end
-
+            -- Always (re)build the FontFace JSON each session. The assetId inside
+            -- points at a per-session custom asset, so a cached JSON from a
+            -- previous session holds a dead assetId and makes every custom font
+            -- fall back to a broken face. Reuse the .ttf, rebuild the .json.
             if not isfile(Library.Folders.Assets .. "/" .. Id .. ".ttf") then 
                 writefile(Library.Folders.Assets .. "/" .. Id .. ".ttf", game:HttpGet(Data.Url))
             end
@@ -7985,6 +7985,17 @@ local Library do
                         Default = false,
                         Callback = function(Value)
                             Window:SetMenuPattern(Value)
+                        end
+                    })
+
+                    MenuSection:Toggle({
+                        Name = "3D UI (EXPERIMENTAL)",
+                        Flag = "ThreeDUI",
+                        Default = false,
+                        Callback = function(Value)
+                            if Library.OnThreeDUI then
+                                Library.OnThreeDUI(Value)
+                            end
                         end
                     })
 
