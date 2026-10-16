@@ -8034,6 +8034,504 @@ local Library do
         
         return SettingsPage
     end
+--[[SPOTIFY-LIB-START]] -- Spotify Toolkit component (managed; delete both markers to remove)
+    Library.Spotify = function(self, Data)
+        Data = Data or { }
+
+        local Spotify = {
+            Title = Data.Title or "Spotify",
+            Visible = false,
+            Bridge = Data.Bridge or "http://127.0.0.1:8889",
+            Poll = Data.Poll or 2,
+            Icons = Data.Icons or getgenv().SpotifyIcons or { },
+            Cfg = { lyrics = true, art = true, progress = true, controls = true },
+        }
+
+        local HS = HttpService
+        local httpReq = (syn and syn.request) or (http and http.request) or http_request or request
+        local FOLDER = "SpotifyInternal"
+        local LYRICS_LINES = 5
+
+        local function rawGet(url)
+            if httpReq then
+                local ok, res = pcall(httpReq, { Url = url, Method = "GET" })
+                if ok and res and res.Body then return res.Body end
+            end
+            local ok, body = pcall(function() return game:HttpGet(url, true) end)
+            if ok then return body end
+            return nil
+        end
+
+        local function jdecode(s)
+            local ok, v = pcall(function() return HS:JSONDecode(s) end)
+            if ok then return v end
+        end
+
+        local function ensureFolder()
+            if type(makefolder) == "function" and not isfolder(FOLDER) then pcall(makefolder, FOLDER) end
+        end
+
+        local function loadArt(url)
+            if not url or url == "" then return nil end
+            if type(getcustomasset) ~= "function" or type(writefile) ~= "function" or type(isfile) ~= "function" then return nil end
+            ensureFolder()
+            local name = (url:gsub("[^%w]", ""):sub(-48)) .. ((url:match("%.(%w+)$") or "png"):lower():gsub("jpeg", "jpg"))
+            local path = FOLDER .. "/" .. name
+            if not isfile(path) then
+                local b = rawGet(url)
+                if not b or #b == 0 then return nil end
+                if not pcall(writefile, path, b) then return nil end
+            end
+            local ok, asset = pcall(getcustomasset, path)
+            return ok and asset or nil
+        end
+
+        -- bundled transport icons (white silhouettes, base64 PNG) --------------
+        local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        local ICON_DATA = {
+    play = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAADlklEQVR42u2bO2gUURSGv9mZYEARFFERQbQQu1j4aALis7BJIWKjYKGFhTbBN6KdLxS0VFR8VClEBMUowaCiQRM1pEtjoYIoWCiImnlYzBk8LCl2Z2dm752dC9vc2d2Ze85//3PPf844URTRyaNGh4/KAJUBKgNUBkgzXPmta7sBnIzCYA0IOwEBjnyOA0PATpkPAU+ulRYBiZd7gPdqfgg4CLxT2yMoIwIS7y4QQ0zJQjcCr4BTQLfMubagIQ0JhooAE2/PAE6KITbJXGQDSaYxQDBNRIgAH1gJPAGuAAvluzWTw21aBEy3PTy5FgF7gTFgt8wZS5JZGUD/nyNoWATcAB4AK2TOuG2RxgCNhA1PvhcAW4E3wGGgyzSSzHNvOookZwFngJfAOpNIsghy0iS5ChgGLgNzTSDJom5cT5L7gVFgex1Jlj4b1CS5FBiQzzKZc4p+pnZBL0FDICgYFVQUnlfUUsI5q3snJDlHeOEZsLbIkGnCCc1VIbMXeA6cBWYXETJNOaLqkNkFHJKzQ58KmV4nSGI6ZC4H7gG3gcUyl3nINDFJ0SEzFNFlTPKLzPMKk0XRxNsBMF8yzEERZDIjSRtUYU2SW4AR0R4yEV9skcU1SXYTq08jwOZW8wrb6gKaJHuAx8BVYJ7KK0pfGKknyT1ykuzjv1zXEZWhhCR9YImEzDXNGqEMpTFHqVQzmz2u22yASEWBKaAfeKpCZ6kNEKjI8FCgf7EODQ2npTaNUEWDT8BR4E4rFSnPMrgnz3sNOAZ8VSgO0goTNsDdlWcdJ1aXB7OqQ3qGez2URf4iVpXPA79lLsyiCOsZ7nWXuNTWD0zkUX2uGUhyide/AfskAZpQKXCQtThpIsndBE4AH1VThk9O6qxJJDcBHJHYnjyf32A5zjoDaJL7C5wDTgvhJSTnU4A+3w5ZXJPcsJDc23a02NTaSHLfgQPAell8LiSXBwLS7kdf3W9A9vqHvEnOBASEStefBLYBO2TxnuICa6rDThNISbT8SLK11cBd1Wnq0+aR1xbQoe21kNwLE/sIs26R0SLFD9nnvbL4tpBckeeAhORc4D5x9+ik8roP5WyX1+Wqz8AuYoV20lSvt4oAVy1at7ZcJ26i/qIM62P4SGOAn3VV2nHZ649sbJZu9n2BpChxAdgA3AIuAX8UMqJOfGHCKq9nQYI1tXDH1sW3igDHNrhnHQaj6rW5ygCVASoD2D7+AY4KAKdHF3uWAAAAAElFTkSuQmCC",
+    pause = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAABdElEQVR42u2azUrFMBBGT2xFcCP+4EbQV3Mr4lZ8BPEx3OlTudTVFVHc3DouzMVQalptlMR8A+G2vfmS9nSSTNtxZkbNtkblJgACIAACIAACIAACIAC1Wpu4PQc0I3U6wH5J//0Trv1hqE145w3YAy6AXb/v/P+r7QfgEngMNKF+BzgH9gf0DXAHXAGvwfF5ZmYpSut/T2zcznqacPt0gv54QP/jknoO2ACWvvTbXh3biug3J+i3c54Eu6DN9ov+uoj+bYJ+mfMy6GbWcYn6KDYOMAVCfwxJobAA5OXCpiFQ+RDQKiAAAqA5oGgAJg8QgLoBuNKGiTxAAMpbBfQw9J8BOM0Bhb8UdRoCei0uD1AcoEmwYgA28wKs9BSZhs/P2wx83h6DPkXf5Azg2bfZRvp6iugXE/QvOQLovGvfAofAwcBdXOcjReY60PT1N8BRoHe9c733dRjJM1CSlNLk5AGKBAVAAARAAARAAARAAARAACL2Dsx2IFSDp07MAAAAAElFTkSuQmCC",
+    next = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAFI0lEQVR42u2bSagcVRSGv3urMWQQCQkqDlEX8UHEjSISJ+Iq4vBQCCpokCASMCpxwIW40oW4EAeMunLnhCNqNL6IiS4FceFLXtSVS/VpoglCsKuOiz4Xr2V1V9WtW9WPfn2hqB6qT53z1z3/Ge5tIyIs52FZ5mMKwBSAKQBTAKpcY1q8v1mqADjFMkCAJOJ9jd67DdnRAHAJwgXACiCNqKio8ecAa1S2XSoAuGm5ATgAHAK+Bbaqor2GT96o0a8BR1T+XQpI0rlLiEj+SPT8jgxGque+iOzwrjEFvy07enp+TGVm8u94Qr8zImIDZAcd+Q+Md/5ejU717JR9XK+xASA4cN9XmX978kVEXvVASroAwI6Yqr7Pu3MKPAm8on4sgb5rvOlu9XUf2AF8DJwWmXNqk6B4JJhXug/sBD4AVnu+W2dkBZ/1VPZW4Avg3AicExWAvKKzwH7gzABFy2RfAnwFXKzve10BICVPKa/oZuBLYKamomWyU+B8jUJb2gRhlP+mJb91IFyoIFxRQ9GyJkSi918H7ANu82SbrgDIKvzePa0z1B1urqhoVgGIRK9bAbwJPKSyTUwQbIOnlFd0FfAecG8FRbMa+rms8RngWS99tm0BYALlOOLcAzxdomidezgg+8Bu4G1gZWD0aWUGFCn6KPCGTt8iRW2AbMc524A54PQYYdJGIKxhit6uBLa+QNHQTqyTfZWGyZmmESLmDChSdItGiI05RdMIsmdU9pVNQGizBHWKbgIOApcDJz2+aCrbRZ854JbQMNl2De4UPQv4XBXNIt3Xjz7vetGnVpepiyaEU3SNKroNOBExjPvR5ykFvHKYNAUrQ0YFfA1cFrEqyzyFjwFr9bWJ2GFKtNFyt7pbUsY3XbahrGfw2gY5x6jyug/cAXw6JPqMvS1uSirNWMR7rRLvxrIIMY5GZNRcfgQIFykIm/V9spwWRvzosx+4cVjneZJXhhwBrgbeYtDl/l8InvSlMUeMq4BLi4h30gHIPHeYL0rxJxmA1Ft+uwf40Xv/H7KYxOFC32/AnVqV2qJGzDgAkMhJ0DDj54FbgQUvNI49DEqLeYB4md9HwNVqfDLM+K4ByNTwk8CvEXoORT3GhEHfcFbrjSVTC7gy9Q/gOgYrP3Wao1XIToD7GHSPrR7pUiiHnU/+oB2ig5qcxJKdKNndoCVxz6sOK6WMZTtEYvjkHLAd+EVB/yuCCzhgDynZHR5Fdl3PANcS7wEvA9er8afod1kkYPcq2QUZXxUAE+iTFniYQasqq+qTNcjuOeAm4GgZ09d1gSZx2k3LYwy2vXzotcSaLmSknqz71d+tt5eBWACEPnln/BH1ye9Cp2XFzK7n9f8YJwC+T36mCi6WGG+6JrsQDrA1ye4lJbvFCj5pKgLrjP8EuCa28U2jQOr54IPALq8dnVa8b9nqcQ94QTs6vzchuxAXsBWm5VGN73s9n8wibMxwZPcA8GIMsqsKgPFIxZYYv6A+OR8wLU0FstvOoL0dhexCZoCMILt9quBioE+apmVsFxyQeMj7ZLdH8+7FBj5pcrL7BWVs68YP2yXmkpXDuc2MFnhEKy4CMzv35L9R2YnK6QHP58rY1o0ftlfYbYE9T0QOiMgJEVkQkdmG+4TdFlwjIqeKyOsiclxEfhKRnd69O9snLCKFi6P5sQH4uepiY81xNvAncDy30tvZGAWAyZFhTONdWyxrQXY0AIrW4NtaMR7bvzfN9J+jTP81NgVgCsAUgOU7/gFvucuMx/bAawAAAABJRU5ErkJggg==",
+    prev = "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAFDUlEQVR42u2bS4gdVRCGv9O3MZgYHygqojEuomBwY0CJjzCuFGOiAUHBhbiQQIyIMbgQV27EhUbF18YHgsHXGI1ExyhG1yIKJpmoqwhufEUxCGJ3l4upo8Vl7u3Tfc/pO+TeA033zKWrq/6u89epOtVORJjkkTHhYwrAFIApAFMAxjlcQh2CZI8TgB4gQKV6uESyGSY7G6PnlcApwPmqqEQ0vgSWARfp/2SpAOBUwQq4EzgEHAFeUzDciJ6Qq/HXA1+p/APAqoFTQkS6OjIRcXr9iPw/Kj0/pL/lLWQ7Eenp9V0iUqjMUs9v62+9/nu7Mr5njHtJlSpUwX/0es8gJQOMz/T6YQOql1+IyLcGfGfvzzsiuxI4DXhD3bNQd/Xzs9fS9TNDdC8AW/VZmZlq/vluMS5IDUCuxl4AvAtc3me8HVVLYFcAu4HNQ2TLICLMOzD+MmAvsHqIgjSMAl72ucA7wPoA2dJlFPAKzigLr9a3NQzwqqHsS4DPA4zvly0pAXBGwduAOeBMNb5Xc680MP4qNf7iAOPR5ydfB/gYXgA7gNd1MVLVGC8BHmCBvQX4GDgnwKtqvSsWAJlZeu4CHjeru9BnVAHAbtM5vzwA2CDvyiOGuZOBV4FbVdmmoc0NCXMCPAY8aIDKWnqpxATAu+XZwCxwTeCcDPFGu6Z/Bbi9JbDJPMCy8Xt6LkaQKYvIPgt4S6NJG9mSKh32Cl6tbDyq8Zapvew1Knsmguxo2aBl4y3A/oZsXKdkBvwNXAl8BlwawfhoHuDTSc/Gsy3YOGRdvwX4BDgvErBRAPBhrgQeBZ41y8tYofS4RpBZrQ3EAnb4Ww3YGbJs/CJwh8m4YpSxROUcA07X6yoSsH4F+gVwRZswaNn4TeC6BHPSg3hGHxd0MvIA49cAe4C1iQlJ6gqYXXJAT41dr2yc2ngi1AOjAeArtjdp0tEJG49r5ANC0SotXy0PTGU5UXaGvAuuU+OLE9n4xQDwRHTQuH01SQD4+Ps9cLf5u5ykzVFv9MvARuBXExUmZne4UvefA67VKZEnBkEi7g9GyQU8Ac4rCO+bvTdJuA6QpdQf4EPg7yxsPOwyUaGKvAL8WVNh1yXxZoEJRabHDmC7Wa/HIEdv7KfADcAfJu1eMh0ivjCZayqcghxX6LJ7BviuA85pXBARkw/MARtY2H8fVVE/Bf5Sfb5WztlvZEukjDNKTdCDcFgV3ReJHCs9TgJ+Am4EnlfZkooX2ubdPkIcAzYBT0Ykx9LkJNuABwwHlbHefIydIVsVuj8yOVYmLX8CuFkjUVvOcYOqw1kERVORo5h8ZK9yzpGWnJO0SywWOboazvlGOeejFuTYSZucJccNwAcNFXUBnPOLkuNzDckx66pNziv6m1aUnjZFl6rG8CyQcwS4R3nHjco5KaqvlhzvA+4NJMesATnmGnk2aSSq45ys60ZJS47PqDfUkaNrwTn7dLrN13BONug5WeL01iv6YUBa7VpyzkEFYW4I54y1VdYr2p9WF8ZTypYlcUuOGzUUW3KUuqJuVzswRV9a/ZQq6hsae8CXLT2hNHZsB3aalaPvTT7c10U+ll5h3y/s21q3ishREflTRHaLyEptY3UtZdt+4c0iMi8ix0XkgIhc2NdS+9/hxvDZnDNFj5XAqcCPxG/NXcZC78IPo+4Ok7iH2G6/SwLZbhgRujF/OOkSlsCCZLvpl6NMvxqbAjAFYArA5I5/AYkiw0ux2ZI+AAAAAElFTkSuQmCC",
+}
+
+        local function b64decode(data)
+            local out, buffer, bits = { }, 0, 0
+            for i = 1, #data do
+                local v = string.find(B64, data:sub(i, i), 1, true)
+                if v then
+                    buffer = buffer * 64 + (v - 1)
+                    bits = bits + 6
+                    if bits >= 8 then
+                        bits = bits - 8
+                        out[#out + 1] = string.char(math.floor(buffer / 2 ^ bits) % 256)
+                        buffer = buffer % (2 ^ bits)
+                    end
+                end
+            end
+            return table.concat(out)
+        end
+
+        local function ensureIcons()
+            local out = { }
+            if type(writefile) ~= "function" or type(getcustomasset) ~= "function" or type(isfile) ~= "function" then
+                return out
+            end
+            ensureFolder()
+            for name, b64 in pairs(ICON_DATA) do
+                local path = FOLDER .. "/icon_" .. name .. ".png"
+                if not isfile(path) then pcall(writefile, path, b64decode(b64)) end
+                local ok, asset = pcall(getcustomasset, path)
+                if ok and asset then out[name] = asset end
+            end
+            return out
+        end
+
+        local ICONS = ensureIcons()
+        for k, v in pairs(Spotify.Icons) do ICONS[k] = v end
+
+        local function parseLRC(lrc)
+            local out = {}
+            for line in lrc:gmatch("[^\r\n]+") do
+                local times = {}
+                for mm, ss in line:gmatch("%[(%d+):(%d+%.?%d*)%]") do
+                    times[#times + 1] = tonumber(mm) * 60 + tonumber(ss)
+                end
+                local text = (line:gsub("%[%d+:%d+%.?%d*%]", ""):gsub("^%s+", ""):gsub("%s+$", ""))
+                for _, tm in ipairs(times) do out[#out + 1] = { time = tm, text = text } end
+            end
+            table.sort(out, function(a, b) return a.time < b.time end)
+            return out
+        end
+
+        local function splitLines(s)
+            local out = {}
+            for line in s:gmatch("[^\r\n]+") do out[#out + 1] = { time = 0, text = line } end
+            return out
+        end
+
+        local function fetchLyrics(title, artist, dur)
+            if not title or title == "" then return nil end
+            local d = jdecode(rawGet("https://lrclib.net/api/get?artist_name=" .. HS:UrlEncode(artist or "")
+                .. "&track_name=" .. HS:UrlEncode(title) .. "&duration=" .. tostring(math.floor(dur or 0))) or "")
+            if d and (d.syncedLyrics or d.plainLyrics) then return d end
+            local list = jdecode(rawGet("https://lrclib.net/api/search?artist_name=" .. HS:UrlEncode(artist or "")
+                .. "&track_name=" .. HS:UrlEncode(title)) or "")
+            if type(list) == "table" and #list > 0 then
+                local best
+                for _, it in ipairs(list) do
+                    if it.syncedLyrics and (not best or math.abs((it.duration or 0) - (dur or 0)) < math.abs((best.duration or 0) - (dur or 0))) then
+                        best = it
+                    end
+                end
+                return best or list[1]
+            end
+            return nil
+        end
+
+        local Font = (Library.Fonts and Library.Fonts["Prompt"]) or Library.Font
+        local Items = { }
+
+        -- panel + header ------------------------------------------------------
+        Items["Panel"] = Instances:Create("Frame", {
+            Parent = Library.Holder.Instance, Name = "\0",
+            Position = Data.Position or UDim2New(0, 24, 0, 24), Size = UDim2New(0, 282, 0, 262),
+            BorderColor3 = FromRGB(12, 12, 12), BorderSizePixel = 2,
+            BackgroundColor3 = FromRGB(14, 17, 15), Visible = false,
+        })  Items["Panel"]:AddToTheme({ BackgroundColor3 = "Background", BorderColor3 = "Border" })
+        Items["Panel"]:Border("Outline")
+        Items["Panel"]:MakeDraggable()
+
+        Items["Header"] = Instances:Create("Frame", {
+            Parent = Items["Panel"].Instance, Name = "\0",
+            Size = UDim2New(1, 0, 0, 26), BackgroundTransparency = 1, BorderSizePixel = 0,
+        })
+
+        Items["Title"] = Instances:Create("TextLabel", {
+            Parent = Items["Header"].Instance, Name = "\0", FontFace = Font,
+            TextColor3 = FromRGB(235, 235, 235), Text = Spotify.Title, TextSize = 9,
+            AnchorPoint = Vector2New(0, 0.5), Position = UDim2New(0, 8, 0.5, 0),
+            Size = UDim2New(1, -16, 0, 15), BackgroundTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Left, BorderSizePixel = 0,
+        })  Items["Title"]:AddToTheme({ TextColor3 = "Text" })
+        Items["Title"]:TextBorder()
+
+        Items["Liner"] = Instances:Create("Frame", {
+            Parent = Items["Panel"].Instance, Name = "\0",
+            Position = UDim2New(0, 0, 0, 26), Size = UDim2New(1, 0, 0, 1),
+            BorderSizePixel = 0, BackgroundColor3 = FromRGB(202, 243, 255),
+        })  Items["Liner"]:AddToTheme({ BackgroundColor3 = "Accent" })
+
+        -- art + meta ----------------------------------------------------------
+        Items["Art"] = Instances:Create("ImageLabel", {
+            Parent = Items["Panel"].Instance, Name = "\0",
+            Position = UDim2New(0, 8, 0, 35), Size = UDim2New(0, 86, 0, 86),
+            BackgroundColor3 = FromRGB(20, 24, 21), BorderSizePixel = 0, Image = "",
+            ScaleType = Enum.ScaleType.Crop, Visible = false,
+        })  Items["Art"]:AddToTheme({ BackgroundColor3 = "Inline" })
+        Items["Art"]:Border("Outline")
+
+        Items["Track"] = Instances:Create("TextLabel", {
+            Parent = Items["Panel"].Instance, Name = "\0", FontFace = Font,
+            TextColor3 = FromRGB(235, 235, 235), Text = "Connecting...", TextSize = 11,
+            Position = UDim2New(0, 104, 0, 36), Size = UDim2New(0, 170, 0, 17),
+            BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd, BorderSizePixel = 0,
+        })  Items["Track"]:AddToTheme({ TextColor3 = "Text" })
+        Items["Track"]:TextBorder()
+
+        Items["Artist"] = Instances:Create("TextLabel", {
+            Parent = Items["Panel"].Instance, Name = "\0", FontFace = Font,
+            TextColor3 = FromRGB(235, 235, 235), TextTransparency = 0.45,
+            Text = "start the launcher", TextSize = 9,
+            Position = UDim2New(0, 104, 0, 54), Size = UDim2New(0, 170, 0, 14),
+            BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left,
+            TextTruncate = Enum.TextTruncate.AtEnd, BorderSizePixel = 0,
+        })  Items["Artist"]:AddToTheme({ TextColor3 = "Text" })
+        Items["Artist"]:TextBorder()
+
+        Items["BarBg"] = Instances:Create("Frame", {
+            Parent = Items["Panel"].Instance, Name = "\0",
+            Position = UDim2New(0, 104, 0, 74), Size = UDim2New(0, 170, 0, 3),
+            BackgroundColor3 = FromRGB(42, 49, 45), BorderSizePixel = 0, Visible = false,
+        })  Items["BarBg"]:AddToTheme({ BackgroundColor3 = "Outline" })
+
+        Items["BarFill"] = Instances:Create("Frame", {
+            Parent = Items["BarBg"].Instance, Name = "\0", Size = UDim2New(0, 0, 1, 0),
+            BorderSizePixel = 0, BackgroundColor3 = FromRGB(202, 243, 255),
+        })  Items["BarFill"]:AddToTheme({ BackgroundColor3 = "Accent" })
+
+        for _, key in ipairs({ "Elapsed", "Remaining" }) do
+            Items[key] = Instances:Create("TextLabel", {
+                Parent = Items["Panel"].Instance, Name = "\0", FontFace = Font,
+                TextColor3 = FromRGB(185, 185, 185), TextSize = 8, Text = "0:00",
+                Position = UDim2New(0, 104, 0, 79), Size = UDim2New(0, 85, 0, 12),
+                BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Left,
+                BorderSizePixel = 0, Visible = false,
+            })  Items[key]:AddToTheme({ TextColor3 = "Placeholder Text" })
+            Items[key]:TextBorder()
+        end
+
+        -- transport -----------------------------------------------------------
+        local function transport(iconKey, glyph, x)
+            local container = Instances:Create("Frame", {
+                Parent = Items["Panel"].Instance, Name = "\0",
+                Position = UDim2New(0, x, 0, 96), Size = UDim2New(0, 42, 0, 20),
+                BorderSizePixel = 0, BackgroundColor3 = FromRGB(30, 36, 31), Visible = false,
+            })  container:AddToTheme({ BackgroundColor3 = "Element" })
+            container:Border("Outline")
+
+            local btn = Instances:Create("TextButton", {
+                Parent = container.Instance, Name = "\0", FontFace = Font,
+                Size = UDim2New(1, 0, 1, 0), BackgroundTransparency = 1, Text = glyph,
+                TextColor3 = FromRGB(235, 235, 235), TextSize = 9, AutoButtonColor = false,
+            })  btn:AddToTheme({ TextColor3 = "Text" })
+
+            local icon
+            if ICONS[iconKey] then
+                btn.Instance.Text = ""
+                icon = Instances:Create("ImageLabel", {
+                    Parent = container.Instance, Name = "\0",
+                    Size = UDim2New(0, 13, 0, 13), Position = UDim2New(0.5, -7, 0.5, -7),
+                    BackgroundTransparency = 1, Image = ICONS[iconKey], ImageColor3 = FromRGB(235, 235, 235),
+                })  icon:AddToTheme({ ImageColor3 = "Text" })
+            end
+
+            container:OnHover(function()
+                container:ChangeItemTheme({ BackgroundColor3 = "Hovered Element" })
+                container:Tween(nil, { BackgroundColor3 = Library.Theme["Hovered Element"] })
+            end)
+            container:OnHoverLeave(function()
+                container:ChangeItemTheme({ BackgroundColor3 = "Element" })
+                container:Tween(nil, { BackgroundColor3 = Library.Theme.Element })
+            end)
+            return container, btn, icon
+        end
+
+        Items["CtrlPrev"], Items["BtnPrev"], Items["PrevIcon"] = transport("prev", "|<", 40)
+        Items["CtrlPlay"], Items["BtnPlay"], Items["PlayIcon"] = transport("play", ">", 88)
+        Items["CtrlNext"], Items["BtnNext"], Items["NextIcon"] = transport("next", ">|", 136)
+
+        Items["Divider"] = Instances:Create("Frame", {
+            Parent = Items["Panel"].Instance, Name = "\0",
+            Position = UDim2New(0, 8, 0, 130), Size = UDim2New(1, -16, 0, 1),
+            BorderSizePixel = 0, BackgroundColor3 = FromRGB(42, 49, 45), Visible = false,
+        })  Items["Divider"]:AddToTheme({ BackgroundColor3 = "Outline" })
+
+        Items["Lyrics"] = { }
+        for i = 1, LYRICS_LINES do
+            Items["Lyrics"][i] = Instances:Create("TextLabel", {
+                Parent = Items["Panel"].Instance, Name = "\0", FontFace = Font,
+                TextColor3 = FromRGB(235, 235, 235), TextTransparency = 0.45, Text = "", TextSize = 9,
+                Position = UDim2New(0, 10, 0, 140 + (i - 1) * 22), Size = UDim2New(1, -20, 0, 22),
+                BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Center,
+                TextTruncate = Enum.TextTruncate.AtEnd, BorderSizePixel = 0, Visible = false,
+            })  Items["Lyrics"][i]:AddToTheme({ TextColor3 = "Text" })
+            Items["Lyrics"][i]:TextBorder()
+        end
+
+        -- layout --------------------------------------------------------------
+        local function layout()
+            local cfg = Spotify.Cfg
+            local W = 282
+            local y = 35
+
+            Items["Art"].Instance.Visible = cfg.art and Spotify.Visible
+            local metaX = cfg.art and 104 or 8
+            local metaW = W - metaX - 8
+
+            Items["Track"].Instance.Position = UDim2New(0, metaX, 0, y + 1)
+            Items["Track"].Instance.Size = UDim2New(0, metaW, 0, 17)
+            Items["Artist"].Instance.Position = UDim2New(0, metaX, 0, y + 19)
+            Items["Artist"].Instance.Size = UDim2New(0, metaW, 0, 14)
+
+            Items["BarBg"].Instance.Visible = cfg.progress and Spotify.Visible
+            Items["Elapsed"].Instance.Visible = cfg.progress and Spotify.Visible
+            Items["Remaining"].Instance.Visible = cfg.progress and Spotify.Visible
+
+            if cfg.progress then
+                local by = y + 40
+                Items["BarBg"].Instance.Position = UDim2New(0, metaX, 0, by)
+                Items["BarBg"].Instance.Size = UDim2New(0, metaW, 0, 3)
+                Items["Elapsed"].Instance.Position = UDim2New(0, metaX, 0, by + 5)
+                Items["Remaining"].Instance.Position = UDim2New(0, metaX + metaW, 0, by + 5)
+                Items["Remaining"].Instance.AnchorPoint = Vector2New(1, 0)
+                Items["Remaining"].Instance.TextXAlignment = Enum.TextXAlignment.Right
+            end
+
+            local topH = cfg.art and 86 or (17 + 2 + 14 + (cfg.progress and (4 + 3 + 5 + 12) or 0))
+            y = y + topH
+
+            local ctrlVisible = cfg.controls and Spotify.Visible
+            for _, k in ipairs({ "CtrlPrev", "CtrlPlay", "CtrlNext" }) do
+                Items[k].Instance.Visible = ctrlVisible
+            end
+            Items["BtnPrev"].Instance.Visible = ctrlVisible
+            Items["BtnPlay"].Instance.Visible = ctrlVisible
+            Items["BtnNext"].Instance.Visible = ctrlVisible
+            if cfg.controls then
+                y = y + 10
+                local total = 42 * 3 + 12
+                local bx = 8 + math.floor((W - 16 - total) / 2)
+                Items["CtrlPrev"].Instance.Position = UDim2New(0, bx, 0, y)
+                Items["CtrlPlay"].Instance.Position = UDim2New(0, bx + 48, 0, y)
+                Items["CtrlNext"].Instance.Position = UDim2New(0, bx + 96, 0, y)
+                y = y + 20
+            end
+
+            Items["Divider"].Instance.Visible = cfg.lyrics and Spotify.Visible
+            if cfg.lyrics then
+                y = y + 8
+                Items["Divider"].Instance.Position = UDim2New(0, 8, 0, y)
+                y = y + 8
+                for i = 1, LYRICS_LINES do
+                    Items["Lyrics"][i].Instance.Visible = Spotify.Visible
+                    Items["Lyrics"][i].Instance.Position = UDim2New(0, 10, 0, y + (i - 1) * 22)
+                end
+                y = y + LYRICS_LINES * 22
+            else
+                for i = 1, LYRICS_LINES do Items["Lyrics"][i].Instance.Visible = false end
+            end
+
+            Items["Panel"].Instance.Size = UDim2New(0, W, 0, y + 8)
+        end
+
+        Spotify.Layout = layout
+
+        function Spotify:Apply(cfg)
+            if cfg then
+                for k, v in pairs(cfg) do Spotify.Cfg[k] = v end
+            end
+            layout()
+        end
+
+        -- state + render ------------------------------------------------------
+        local state = { title = "", artist = "", pos = 0, dur = 1, playing = false, art = nil, at = 0, key = nil, lyrics = {}, synced = false, lyricStatus = nil }
+
+        local function fmt(t)
+            t = math.max(t or 0, 0)
+            return string.format("%d:%02d", math.floor(t / 60), math.floor(t % 60))
+        end
+
+        local function currentIndex(t)
+            local idx = 0
+            for i, l in ipairs(state.lyrics) do
+                if l.time <= t + 0.15 then idx = i else break end
+            end
+            return idx
+        end
+
+        local function requestLyrics(d)
+            local data = fetchLyrics(d.title, d.artist, d.dur)
+            if data and data.syncedLyrics then
+                state.lyrics, state.synced, state.lyricStatus = parseLRC(data.syncedLyrics), true, nil
+            elseif data and data.plainLyrics then
+                state.lyrics, state.synced, state.lyricStatus = splitLines(data.plainLyrics), false, nil
+            else
+                state.lyrics, state.synced, state.lyricStatus = {}, false, "No lyrics found"
+            end
+        end
+
+        local function poll()
+            local d = jdecode(rawGet(Spotify.Bridge .. "/now") or "")
+            if not d or not d.has then
+                state.title, state.artist, state.playing = "Bridge offline", "start the launcher", false
+                state.pos, state.dur, state.lyrics, state.lyricStatus = 0, 0, {}, nil
+                state.at = tick()
+                return
+            end
+            state.title = d.title or ""
+            state.artist = d.artist or ""
+            state.pos = d.pos or 0
+            state.dur = math.max(d.dur or 0, 0.001)
+            state.playing = d.playing and true or false
+            state.at = tick()
+            if d.art and d.art ~= "" and d.art ~= state.art then
+                state.art = d.art
+                local a = loadArt(d.art)
+                if a then Items["Art"].Instance.Image = a end
+            end
+            if d.key and d.key ~= state.key then
+                state.key = d.key
+                state.lyrics, state.synced, state.lyricStatus = {}, false, "Loading lyrics..."
+                Library:Thread(function() requestLyrics(d) end)
+            end
+        end
+
+        local function control(action)
+            rawGet(Spotify.Bridge .. "/" .. action)
+            task.wait(0.15)
+            poll()
+        end
+
+        Items["BtnNext"]:Connect("MouseButton1Click", function() control("next") end)
+        Items["BtnPrev"]:Connect("MouseButton1Click", function() control("prev") end)
+        Items["BtnPlay"]:Connect("MouseButton1Click", function() control("toggle") end)
+
+        local function getPos()
+            local p = state.pos
+            if state.playing then p = p + (tick() - state.at) end
+            return math.clamp(p, 0, state.dur)
+        end
+
+        local function drawLyrics(dpos)
+            if not Spotify.Cfg.lyrics then return end
+            if #state.lyrics == 0 then
+                for i = 1, LYRICS_LINES do
+                    local lbl = Items["Lyrics"][i].Instance
+                    lbl.Text = (i == math.floor(LYRICS_LINES / 2) + 1) and (state.lyricStatus or "") or ""
+                    lbl.TextColor3, lbl.TextTransparency = Library.Theme["Placeholder Text"], 0
+                end
+                return
+            end
+            if state.synced then
+                local idx = math.max(currentIndex(dpos), 1)
+                local start = idx - math.floor(LYRICS_LINES / 2)
+                for i = 1, LYRICS_LINES do
+                    local li = start + i - 1
+                    local l = state.lyrics[li]
+                    local lbl = Items["Lyrics"][i].Instance
+                    if l then
+                        lbl.Text = (l.text ~= "" and l.text) or "\u{266A}"
+                        lbl.TextColor3 = (li == idx) and Library.Theme.Accent or Library.Theme.Text
+                        lbl.TextTransparency = (li == idx) and 0 or 0.45
+                    else
+                        lbl.Text = ""
+                    end
+                end
+            else
+                for i = 1, LYRICS_LINES do
+                    local l = state.lyrics[i]
+                    local lbl = Items["Lyrics"][i].Instance
+                    lbl.Text = l and l.text or ""
+                    lbl.TextColor3, lbl.TextTransparency = Library.Theme.Text, 0.45
+                end
+            end
+        end
+
+        Library:Connect(RunService.RenderStepped, function()
+            if not Spotify.Visible then return end
+            Items["Track"].Instance.Text = state.title ~= "" and state.title or "Nothing playing"
+            Items["Artist"].Instance.Text = state.artist
+            Items["BtnPlay"].Instance.Text = ICONS.play and "" or (state.playing and "II" or ">")
+            if Items["PlayIcon"] then
+                Items["PlayIcon"].Instance.Image = state.playing and (ICONS.pause or ICONS.play) or ICONS.play
+            end
+            local dpos = getPos()
+            if state.dur > 0 then
+                Items["BarFill"].Instance.Size = UDim2New(math.clamp(dpos / state.dur, 0, 1), 0, 1, 0)
+            end
+            Items["Elapsed"].Instance.Text = fmt(dpos)
+            Items["Remaining"].Instance.Text = "-" .. fmt(math.max(state.dur - dpos, 0))
+            drawLyrics(dpos)
+        end)
+
+        local pollRunning = false
+        function Spotify:SetVisibility(Bool)
+            Spotify.Visible = Bool
+            Items["Panel"].Instance.Visible = Bool
+            if Bool then
+                layout()
+                Library:Thread(function()
+                    if pollRunning then return end
+                    pollRunning = true
+                    while Spotify.Visible do
+                        poll()
+                        task.wait(Spotify.Poll)
+                    end
+                    pollRunning = false
+                end)
+            end
+        end
+
+        function Spotify:Destroy()
+            if Items["Panel"] then Items["Panel"]:Clean() end
+            Spotify.Visible = false
+        end
+
+        return Spotify
+    end
+--[[SPOTIFY-LIB-END]]
 end
 
 getgenv().Library = Library
