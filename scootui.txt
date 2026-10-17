@@ -5120,6 +5120,11 @@ local Library do
             IdleTrack = nil,
             Root = nil,
             RootOrigin = nil,
+
+            -- Which side of the box each element sits on. Draggable in the preview and readable
+            -- from outside (ESPPreview.Sides / OnSideChanged) so the preview drives the real ESP.
+            Sides = Data.Sides or { Name = "top", Tool = "bottom", Health = "left" },
+            OnSideChanged = Data.OnSideChanged,
         }
 
         local PreviewPlayer = ESPPreview.Player
@@ -5337,6 +5342,7 @@ local Library do
         local Mirrored = { }
         local MirrorConnection
         local TargetCharacter
+        local DraggingKey = nil
 
         local function UpdateCamera()
             Camera.CFrame = CFrame.Angles(0, ESPPreview.SpinAngle, 0) * CFrame.new(0, 0, ESPPreview.Distance)
@@ -5919,7 +5925,27 @@ local Library do
                 }
             end
 
-            -- Healthbar (gradient from the ESP health colors, animated 0 -> 100 -> 0)
+            local Sides = ESPPreview.Sides or { }
+
+            -- Place a label on a box side: top / bottom / left / right.
+            local function PlaceText(Inst, Side, Gap)
+                Gap = Gap or 2
+                if Side == "top" then
+                    Inst.AnchorPoint = Vector2New(0.5, 1)
+                    Inst.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY - Gap)
+                elseif Side == "bottom" then
+                    Inst.AnchorPoint = Vector2New(0.5, 0)
+                    Inst.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY + BoxH + Gap)
+                elseif Side == "left" then
+                    Inst.AnchorPoint = Vector2New(1, 0.5)
+                    Inst.Position = UDim2New(0, BoxX - Gap - 2, 0, BoxY + BoxH * 0.5)
+                else
+                    Inst.AnchorPoint = Vector2New(0, 0.5)
+                    Inst.Position = UDim2New(0, BoxX + BoxW + Gap + 2, 0, BoxY + BoxH * 0.5)
+                end
+            end
+
+            -- Healthbar (side-aware, gradient from the ESP health colors, animated 0 -> 100 -> 0)
             local ShowHealth = Settings.Healthbar
             if ShowHealth == nil then ShowHealth = true end
 
@@ -5933,12 +5959,23 @@ local Library do
                 local Health = Phase <= 0.5 and Phase * 2 or (2 - Phase * 2)
                 ESPPreview.Health = Health
 
-                local BarX = math.max(BoxX - Thickness - 4, 0)
-                local BarH = BoxH
-                local Fill = BarH * math.clamp(Health, 0, 1)
+                local Fill = math.clamp(Health, 0, 1)
+                local Side = Sides.Health or "left"
+                local Inst = Items["HealthFill"].Instance
 
-                Items["HealthFill"].Instance.Position = UDim2New(0, BarX, 0, BoxY + (BarH - Fill))
-                Items["HealthFill"].Instance.Size = UDim2New(0, Thickness, 0, Fill)
+                if DraggingKey ~= "Health" then
+                    if Side == "top" or Side == "bottom" then
+                        Inst.AnchorPoint = Vector2New(0, Side == "top" and 1 or 0)
+                        Inst.Position = UDim2New(0, BoxX, 0, Side == "top" and (BoxY - 4) or (BoxY + BoxH + 4))
+                        Inst.Size = UDim2New(0, BoxW * Fill, 0, Thickness)
+                        Items["HealthFillGradient"].Instance.Rotation = 0
+                    else
+                        Inst.AnchorPoint = Vector2New(Side == "left" and 1 or 0, 1)
+                        Inst.Position = UDim2New(0, Side == "left" and (BoxX - 4) or (BoxX + BoxW + 4), 0, BoxY + BoxH)
+                        Inst.Size = UDim2New(0, Thickness, 0, BoxH * Fill)
+                        Items["HealthFillGradient"].Instance.Rotation = 90
+                    end
+                end
 
                 local HealthColors = Settings.HealthColors or { }
 
@@ -5958,7 +5995,9 @@ local Library do
             if ShowNames then
                 Items["ESPName"].Instance.Text = Settings.Name or ESPPreview.Label
                 Items["ESPName"].Instance.TextSize = Settings.NameSize or 11
-                Items["ESPName"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY - 2)
+                if DraggingKey ~= "Name" then
+                    PlaceText(Items["ESPName"].Instance, Sides.Name or "top", 2)
+                end
             end
 
             -- Tools + distance
@@ -5970,14 +6009,29 @@ local Library do
 
             if ShowTools then
                 local ToolSize = Settings.ToolSize or 11
+                local ToolSide = Sides.Tool or "bottom"
 
                 Items["ESPTool"].Instance.Text = Settings.Tool or ESPPreview.Tool
                 Items["ESPTool"].Instance.TextSize = ToolSize
-                Items["ESPTool"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY + BoxH + 3)
+                if DraggingKey ~= "Tool" then
+                    PlaceText(Items["ESPTool"].Instance, ToolSide, 3)
+                end
 
                 Items["ESPDistance"].Instance.Text = Settings.Distance or ESPPreview.DistanceText
                 Items["ESPDistance"].Instance.TextSize = ToolSize
-                Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY + BoxH + 3 + ToolSize + 3)
+                if ToolSide == "top" then
+                    Items["ESPDistance"].Instance.AnchorPoint = Vector2New(0.5, 1)
+                    Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY - 3 - ToolSize - 3)
+                elseif ToolSide == "bottom" then
+                    Items["ESPDistance"].Instance.AnchorPoint = Vector2New(0.5, 0)
+                    Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY + BoxH + 3 + ToolSize + 3)
+                elseif ToolSide == "left" then
+                    Items["ESPDistance"].Instance.AnchorPoint = Vector2New(1, 0.5)
+                    Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX - 5 - ToolSize, 0, BoxY + BoxH * 0.5)
+                else
+                    Items["ESPDistance"].Instance.AnchorPoint = Vector2New(0, 0.5)
+                    Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX + BoxW + 5 + ToolSize, 0, BoxY + BoxH * 0.5)
+                end
             end
         end
 
@@ -6098,6 +6152,9 @@ local Library do
         local LastClick = 0
 
         Items["Viewport"]:Connect("InputBegan", function(Input)
+            if DraggingKey then
+                return
+            end
             if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                 local Now = os.clock()
 
@@ -6136,6 +6193,68 @@ local Library do
             if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                 Rotating = false
                 LastMouseX = nil
+            end
+        end)
+
+        -- Grab-and-drop the overlay elements (name / tool / healthbar) and snap them to a box side.
+        local DragElements = {
+            Name = Items["ESPName"].Instance,
+            Tool = Items["ESPTool"].Instance,
+            Health = Items["HealthFill"].Instance,
+        }
+
+        local function OverlayLocal(Position)
+            local Absolute = Items["Overlay"].Instance.AbsolutePosition
+            return Position.X - Absolute.X, Position.Y - Absolute.Y
+        end
+
+        local function SnapSide(LocalX, LocalY)
+            local Size = Items["Overlay"].Instance.AbsoluteSize
+            local DX, DY = LocalX - Size.X * 0.5, LocalY - Size.Y * 0.5
+            if math.abs(DX) >= math.abs(DY) then
+                return DX < 0 and "left" or "right"
+            end
+            return DY < 0 and "top" or "bottom"
+        end
+
+        for Key, Inst in DragElements do
+            Inst.Active = true
+            Inst.InputBegan:Connect(function(Input)
+                if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                    DraggingKey = Key
+                    ESPPreview.AutoSpin = false
+                end
+            end)
+        end
+
+        Library:Connect(UserInputService.InputChanged, function(Input)
+            if not DraggingKey then
+                return
+            end
+            if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
+                local Inst = DragElements[DraggingKey]
+                if Inst then
+                    local X, Y = OverlayLocal(Input.Position)
+                    Inst.AnchorPoint = Vector2New(0, 0)
+                    Inst.Position = UDim2New(0, X, 0, Y)
+                end
+            end
+        end)
+
+        Library:Connect(UserInputService.InputEnded, function(Input)
+            if not DraggingKey then
+                return
+            end
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                local X, Y = OverlayLocal(Input.Position)
+                local Side = SnapSide(X, Y)
+                ESPPreview.Sides = ESPPreview.Sides or { }
+                ESPPreview.Sides[DraggingKey] = Side
+                if type(ESPPreview.OnSideChanged) == "function" then
+                    pcall(ESPPreview.OnSideChanged, DraggingKey, Side)
+                end
+                DraggingKey = nil
+                UpdateOverlay()
             end
         end)
 
@@ -7677,6 +7796,8 @@ local Library do
     end
 
     Library.CreateSettingsPage = function(self, Window, Watermark, KeybindList, ESPPreview)
+        local ESPPreviewWanted = true
+
         local SettingsPage = Window:Page({Name = "Settings", SubPages = true}) do 
             local ThemingSubPage = SettingsPage:SubPage({Name = "Theming", Columns = 2}) do 
                 local ColorsSection = ThemingSubPage:Section({Name = "Colors", Side = 1}) do
@@ -7974,7 +8095,8 @@ local Library do
                             Flag = "ESPPreview",
                             Default = true,
                             Callback = function(Value)
-                                ESPPreview:SetVisibility(Value)
+                                ESPPreviewWanted = Value
+                                ESPPreview:SetVisibility(Value and Window.IsOpen == true or false)
                             end
                         })
                     end
@@ -8032,6 +8154,17 @@ local Library do
             end
         end
         
+        -- Only show the ESP preview while the menu window is open (it used to float over the game
+        -- even with the menu closed). Wrapped here so every Window:SetOpen path is covered.
+        if ESPPreview then
+            local _BaseSetOpen = Window.SetOpen
+            Window.SetOpen = function(self, Bool, ...)
+                _BaseSetOpen(self, Bool, ...)
+                ESPPreview:SetVisibility((Bool and ESPPreviewWanted) and true or false)
+            end
+            ESPPreview:SetVisibility(Window.IsOpen and ESPPreviewWanted and true or false)
+        end
+
         return SettingsPage
     end
 --[[SPOTIFY-LIB-START]] -- Spotify Toolkit component (managed; delete both markers to remove)
@@ -8172,9 +8305,18 @@ local Library do
         local Font = (Library.Fonts and Library.Fonts["Prompt"]) or Library.Font
         local Items = { }
 
+        -- own 2D overlay, independent of the menu / 3D UI ---------------------
+        local guiParent = (type(gethui) == "function" and (pcall(gethui) and gethui()))
+            or (pcall(function() return game:GetService("CoreGui") end) and game:GetService("CoreGui"))
+            or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+        Items["Screen"] = Instances:Create("ScreenGui", {
+            Parent = guiParent, Name = "SpotifyOverlay", ResetOnSpawn = false,
+            IgnoreGuiInset = true, ZIndexBehavior = Enum.ZIndexBehavior.Global, DisplayOrder = 999,
+        })
+
         -- panel + header ------------------------------------------------------
         Items["Panel"] = Instances:Create("Frame", {
-            Parent = Library.Holder.Instance, Name = "\0",
+            Parent = Items["Screen"].Instance, Name = "\0",
             Position = Data.Position or UDim2New(0, 24, 0, 24), Size = UDim2New(0, 282, 0, 262),
             BorderColor3 = FromRGB(12, 12, 12), BorderSizePixel = 2,
             BackgroundColor3 = FromRGB(14, 17, 15), Visible = false,
@@ -8526,6 +8668,7 @@ local Library do
 
         function Spotify:Destroy()
             if Items["Panel"] then Items["Panel"]:Clean() end
+            if Items["Screen"] then Items["Screen"]:Clean() end
             Spotify.Visible = false
         end
 
