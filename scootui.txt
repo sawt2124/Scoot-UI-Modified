@@ -5123,7 +5123,7 @@ local Library do
 
             -- Which side of the box each element sits on. Draggable in the preview and readable
             -- from outside (ESPPreview.Sides / OnSideChanged) so the preview drives the real ESP.
-            Sides = Data.Sides or { Name = "top", Tool = "bottom", Health = "left" },
+            Sides = Data.Sides or { Name = "left", Tool = "left", Health = "left" },
             OnSideChanged = Data.OnSideChanged,
         }
 
@@ -5333,6 +5333,44 @@ local Library do
                 ZIndex = 8,
                 BackgroundColor3 = FromRGB(255, 255, 255)
             })  Items["ESPDistanceStroke"] = Items["ESPDistance"]:TextBorder()
+            Items["ESPDistance"].Instance.Visible = false
+
+            -- Invisible grab handles (so thin things like the healthbar are still easy to grab)
+            for _, Key in { "Name", "Tool", "Health" } do
+                Items["Grab" .. Key] = Instances:Create("Frame", {
+                    Parent = Items["Overlay"].Instance,
+                    Name = "\0",
+                    BackgroundTransparency = 1,
+                    BorderSizePixel = 0,
+                    Size = UDim2New(0, 0, 0, 0),
+                    Position = UDim2New(0, 0, 0, 0),
+                    ZIndex = 20,
+                    Active = true,
+                    BackgroundColor3 = FromRGB(255, 255, 255)
+                })
+            end
+
+            -- Outline drawn around whatever element you're grabbing.
+            Items["GrabIndicator"] = Instances:Create("Frame", {
+                Parent = Items["Overlay"].Instance,
+                Name = "\0",
+                BackgroundTransparency = 1,
+                BackgroundColor3 = FromRGB(255, 255, 255),
+                BorderColor3 = FromRGB(202, 243, 255),
+                BorderSizePixel = 1,
+                Size = UDim2New(0, 0, 0, 0),
+                Position = UDim2New(0, 0, 0, 0),
+                Visible = false,
+                ZIndex = 40
+            })
+
+            Instances:Create("UIStroke", {
+                Parent = Items["GrabIndicator"].Instance,
+                Name = "\0",
+                Color = FromRGB(202, 243, 255),
+                Thickness = 1,
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })
         end
 
         local Camera = Items["Camera"].Instance
@@ -5926,8 +5964,9 @@ local Library do
             end
 
             local Sides = ESPPreview.Sides or { }
+            local Stack = { left = 0, right = 0 }
 
-            -- Place a label on a box side: top / bottom / left / right.
+            -- Place a label on a box side. Left/right align to the UPPER part and stack downwards.
             local function PlaceText(Inst, Side, Gap)
                 Gap = Gap or 2
                 if Side == "top" then
@@ -5936,12 +5975,14 @@ local Library do
                 elseif Side == "bottom" then
                     Inst.AnchorPoint = Vector2New(0.5, 0)
                     Inst.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY + BoxH + Gap)
-                elseif Side == "left" then
-                    Inst.AnchorPoint = Vector2New(1, 0.5)
-                    Inst.Position = UDim2New(0, BoxX - Gap - 2, 0, BoxY + BoxH * 0.5)
+                elseif Side == "right" then
+                    Inst.AnchorPoint = Vector2New(0, 0)
+                    Inst.Position = UDim2New(0, BoxX + BoxW + Gap + 4, 0, BoxY + Stack.right)
+                    Stack.right = Stack.right + 18
                 else
-                    Inst.AnchorPoint = Vector2New(0, 0.5)
-                    Inst.Position = UDim2New(0, BoxX + BoxW + Gap + 2, 0, BoxY + BoxH * 0.5)
+                    Inst.AnchorPoint = Vector2New(1, 0)
+                    Inst.Position = UDim2New(0, BoxX - Gap - 4, 0, BoxY + Stack.left)
+                    Stack.left = Stack.left + 18
                 end
             end
 
@@ -5996,42 +6037,46 @@ local Library do
                 Items["ESPName"].Instance.Text = Settings.Name or ESPPreview.Label
                 Items["ESPName"].Instance.TextSize = Settings.NameSize or 11
                 if DraggingKey ~= "Name" then
-                    PlaceText(Items["ESPName"].Instance, Sides.Name or "top", 2)
+                    PlaceText(Items["ESPName"].Instance, Sides.Name or "left", 2)
                 end
             end
 
-            -- Tools + distance
+            -- Tools (distance label removed)
             local ShowTools = Settings.Tools
             if ShowTools == nil then ShowTools = true end
 
             Items["ESPTool"].Instance.Visible = ShowTools
-            Items["ESPDistance"].Instance.Visible = ShowTools
 
             if ShowTools then
-                local ToolSize = Settings.ToolSize or 11
-                local ToolSide = Sides.Tool or "bottom"
-
                 Items["ESPTool"].Instance.Text = Settings.Tool or ESPPreview.Tool
-                Items["ESPTool"].Instance.TextSize = ToolSize
+                Items["ESPTool"].Instance.TextSize = Settings.ToolSize or 11
                 if DraggingKey ~= "Tool" then
-                    PlaceText(Items["ESPTool"].Instance, ToolSide, 3)
+                    PlaceText(Items["ESPTool"].Instance, Sides.Tool or "left", 3)
                 end
+            end
 
-                Items["ESPDistance"].Instance.Text = Settings.Distance or ESPPreview.DistanceText
-                Items["ESPDistance"].Instance.TextSize = ToolSize
-                if ToolSide == "top" then
-                    Items["ESPDistance"].Instance.AnchorPoint = Vector2New(0.5, 1)
-                    Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY - 3 - ToolSize - 3)
-                elseif ToolSide == "bottom" then
-                    Items["ESPDistance"].Instance.AnchorPoint = Vector2New(0.5, 0)
-                    Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX + BoxW * 0.5, 0, BoxY + BoxH + 3 + ToolSize + 3)
-                elseif ToolSide == "left" then
-                    Items["ESPDistance"].Instance.AnchorPoint = Vector2New(1, 0.5)
-                    Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX - 5 - ToolSize, 0, BoxY + BoxH * 0.5)
-                else
-                    Items["ESPDistance"].Instance.AnchorPoint = Vector2New(0, 0.5)
-                    Items["ESPDistance"].Instance.Position = UDim2New(0, BoxX + BoxW + 5 + ToolSize, 0, BoxY + BoxH * 0.5)
-                end
+            -- Move the invisible grab handles over each element (padded so the thin healthbar is
+            -- still easy to grab).
+            local function MatchHandle(Handle, Element, PadX, PadY, MinW)
+                local Rel = Element.AbsolutePosition - Overlay.AbsolutePosition
+                local Size = Element.AbsoluteSize
+                Handle.Position = UDim2New(0, Rel.X - PadX, 0, Rel.Y - PadY)
+                Handle.Size = UDim2New(0, math.max(Size.X, MinW or 0) + PadX * 2, 0, Size.Y + PadY * 2)
+            end
+
+            MatchHandle(Items["GrabName"].Instance, Items["ESPName"].Instance, 2, 1, 0)
+            MatchHandle(Items["GrabTool"].Instance, Items["ESPTool"].Instance, 2, 1, 0)
+            MatchHandle(Items["GrabHealth"].Instance, Items["HealthFill"].Instance, 5, 2, 8)
+
+            -- Outline whatever element is currently being dragged.
+            local Indicator = Items["GrabIndicator"].Instance
+            local DraggedHandle = DraggingKey and Items["Grab" .. DraggingKey]
+            if DraggedHandle then
+                Indicator.Position = DraggedHandle.Instance.Position
+                Indicator.Size = DraggedHandle.Instance.Size
+                Indicator.Visible = true
+            else
+                Indicator.Visible = false
             end
         end
 
@@ -6196,11 +6241,17 @@ local Library do
             end
         end)
 
-        -- Grab-and-drop the overlay elements (name / tool / healthbar) and snap them to a box side.
-        local DragElements = {
+        -- Grab-and-drop the overlay elements (name / tool / healthbar) via their invisible handles,
+        -- then snap them to a box side.
+        local DragTargets = {
             Name = Items["ESPName"].Instance,
             Tool = Items["ESPTool"].Instance,
             Health = Items["HealthFill"].Instance,
+        }
+        local DragHandles = {
+            Name = Items["GrabName"].Instance,
+            Tool = Items["GrabTool"].Instance,
+            Health = Items["GrabHealth"].Instance,
         }
 
         local function OverlayLocal(Position)
@@ -6217,9 +6268,9 @@ local Library do
             return DY < 0 and "top" or "bottom"
         end
 
-        for Key, Inst in DragElements do
-            Inst.Active = true
-            Inst.InputBegan:Connect(function(Input)
+        for Key, Handle in DragHandles do
+            Handle.Active = true
+            Handle.InputBegan:Connect(function(Input)
                 if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
                     DraggingKey = Key
                     ESPPreview.AutoSpin = false
@@ -6232,11 +6283,11 @@ local Library do
                 return
             end
             if Input.UserInputType == Enum.UserInputType.MouseMovement or Input.UserInputType == Enum.UserInputType.Touch then
-                local Inst = DragElements[DraggingKey]
-                if Inst then
-                    local X, Y = OverlayLocal(Input.Position)
-                    Inst.AnchorPoint = Vector2New(0, 0)
-                    Inst.Position = UDim2New(0, X, 0, Y)
+                local X, Y = OverlayLocal(Input.Position)
+                local Target = DragTargets[DraggingKey]
+                if Target then
+                    Target.AnchorPoint = Vector2New(0, 0)
+                    Target.Position = UDim2New(0, X, 0, Y)
                 end
             end
         end)
@@ -6857,6 +6908,17 @@ local Library do
                 SearchStepped = nil
             end
         end)
+
+        -- Remember the window and apply the (embedded) 3D UI on each open.
+        Library.CurrentWindow = Window
+        local _BaseSetOpen3D = Window.SetOpen
+        Window.SetOpen = function(self, Bool, ...)
+            local result = _BaseSetOpen3D(self, Bool, ...)
+            if Bool and Library.Apply3D then
+                pcall(Library.Apply3D)
+            end
+            return result
+        end
 
         Window:SetOpen(true)
         return setmetatable(Window, self)
@@ -8676,6 +8738,686 @@ local Library do
     end
 --[[SPOTIFY-LIB-END]]
 end
+
+    -- ===== Embedded 3D UI (ships inside the library; no external file / localhost) =====
+    local Hood3DPresenter = (function()
+--[[
+================================================================================
+  Hood3DUI  --  Build 1: the 3D UI (presenter)
+================================================================================
+  * On OPEN the panel is placed at the player's position, a little forward and
+    angled slightly upward, and then STAYS where it is while open.
+  * While CLOSED it follows the character (so it is already with you when you
+    open it).
+  * Smaller: the menu content is scaled down (keeps slider accuracy).
+  * Little open effect: a scale "pop" as it appears.
+  * Draggable (grab the top / drag key), scroll for depth, smooth movement.
+  * No world greyscale / blur -- the world is untouched.
+  * Watermark / Keybind list / ESP preview / notifications stay 2D on screen.
+    Only the menu itself is 3D.
+
+  API:
+      ui:Reanchor()  ui:SetDistance(n)  ui:SetScale(n)
+      ui:SetEnabled(bool)  ui:SetAnchorMode("Player")  ui:Destroy()
+
+  OPTIONS
+      AnchorMode       "Player" | "World"                            ("Player")
+      Side             "Front" | "Behind"                             ("Front")
+      Distance         studs in front of you                          (5)
+      VerticalOffset   raise/lower the panel (studs)                  (0)
+      Tilt             degrees, angles the panel upward               (9)
+      Scale            menu size (0.2..2.5)                           (1.5)
+      Smoothness       position easing (higher = snappier)            (9)
+      DragScale        how far it moves per mouse pixel               (0.8)
+      (drag by the window's top bar, or hold the drag key and drag anywhere)
+      DragKey          hold to drag from anywhere (nil to disable)    (LeftAlt)
+      ReanchorKey      snap back in front of you                      (Home)
+      AlwaysOnTop      draw over geometry (off = occluded by walls/you)(false)
+      LockWindow       misclicks don't drag the Scoot window          (true)
+      KeepOnScreen     watermark/keybinds/ESP/notifs stay 2D          (true)
+      PopTime          open "pop" duration (0 to disable)             (0.3)
+      Parent           where the part lives                           (Workspace)
+================================================================================
+]]
+
+local Hood3D = {}
+Hood3D.__index = Hood3D
+
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+
+local function resolveScreenGui(target)
+	if typeof(target) == "Instance" then
+		if target:IsA("ScreenGui") then
+			return target
+		end
+		return nil
+	end
+	if type(target) == "table" then
+		if target.Holder and target.Holder.Instance and target.Holder.Instance:IsA("ScreenGui") then
+			return target.Holder.Instance
+		end
+		if target.Instance and typeof(target.Instance) == "Instance" and target.Instance:IsA("ScreenGui") then
+			return target.Instance
+		end
+	end
+	return nil
+end
+
+local function findCustomCursor(root)
+	for _, child in ipairs(root:GetChildren()) do
+		if child:IsA("Frame") and child.ZIndex >= 9999 and child:FindFirstChildOfClass("ImageLabel") then
+			return child
+		end
+	end
+	return nil
+end
+
+local function findWindow(root)
+	for _, child in ipairs(root:GetChildren()) do
+		if child:IsA("Frame") and child.BackgroundTransparency < 1 then
+			local x, y = child.Size.X.Offset, child.Size.Y.Offset
+			if x >= 600 and x <= 900 and y >= 400 and y <= 700 then
+				return child
+			end
+		end
+	end
+	return nil
+end
+
+local function isOverlay(child)
+	if not child:IsA("Frame") then
+		return false
+	end
+	if child:FindFirstChildWhichIsA("ViewportFrame", true) then
+		return true -- ESP preview panel
+	end
+	if child.AnchorPoint.Y >= 1 then
+		return true -- watermark (bottom-anchored)
+	end
+	if child.AnchorPoint.X <= 0 and child.AnchorPoint.Y == 0.5 then
+		return true -- keybind list (left-middle)
+	end
+	return false
+end
+
+function Hood3D.Mount(target, options)
+	options = options or {}
+
+	local gui = resolveScreenGui(target)
+	assert(gui, "Hood3D.Mount: expected a ScreenGui (or a Scoot Library / holder object)")
+
+	-- Things that should stay on screen (2D) rather than go on the 3D panel.
+	local keepInstances = {}
+	if type(target) == "table" then
+		if target.NotifHolder and typeof(target.NotifHolder.Instance) == "Instance" then
+			keepInstances[target.NotifHolder.Instance] = true
+		end
+		if target.UnusedHolder and typeof(target.UnusedHolder.Instance) == "Instance" then
+			keepInstances[target.UnusedHolder.Instance] = true
+		end
+	end
+	for _, instance in ipairs(options.KeepOnScreen2D or {}) do
+		if typeof(instance) == "Instance" then
+			keepInstances[instance] = true
+		end
+	end
+
+	local camera = Workspace.CurrentCamera
+	assert(camera, "Hood3D.Mount: no CurrentCamera")
+
+	local distance = tonumber(options.Distance) or 5
+	local anchorMode = tostring(options.AnchorMode or "Player")
+	local side = tostring(options.Side or "Front")
+	local smoothing = math.clamp(tonumber(options.Smoothness) or 9, 0.5, 60)
+	local dragScale = math.clamp(tonumber(options.DragScale) or 0.8, 0.05, 3)
+	local verticalOffset = tonumber(options.VerticalOffset) or 0
+	local tilt = math.rad(tonumber(options.Tilt) or 9)
+	local menuScale = math.clamp(tonumber(options.Scale) or 1.5, 0.2, 2.5)
+	local alwaysOnTop = options.AlwaysOnTop == true
+	local hideCustomCursor = options.HideCustomCursor ~= false
+	local canQuery = options.CanQuery ~= false
+	local lockWindow = options.LockWindow ~= false
+	local keepOnScreen = options.KeepOnScreen ~= false
+	local popTime = math.max(tonumber(options.PopTime) or 0.3, 0)
+	local dragKey = options.DragKey
+	if dragKey == nil then
+		dragKey = Enum.KeyCode.LeftAlt
+	end
+	local reanchorKey = options.ReanchorKey
+	if reanchorKey == nil then
+		reanchorKey = Enum.KeyCode.Home
+	end
+	local parent = options.Parent or Workspace
+
+	local folder = Instance.new("Folder")
+	folder.Name = "Hood3DUI"
+
+	local panel = Instance.new("Part")
+	panel.Name = "Hood3DPanel"
+	panel.Anchored = true
+	panel.CanCollide = false
+	panel.CanTouch = false
+	panel.CastShadow = false
+	panel.CanQuery = false
+	panel.Transparency = 1
+	panel.TopSurface = Enum.SurfaceType.Smooth
+	panel.BottomSurface = Enum.SurfaceType.Smooth
+	panel.Size = Vector3.new(1, 1, 0.08)
+	panel.CFrame = camera.CFrame * CFrame.new(0, 0, -math.max(distance, 0.1))
+	panel.Parent = folder
+
+	local surface = Instance.new("SurfaceGui")
+	surface.Name = "Hood3DSurface"
+	surface.Face = Enum.NormalId.Front
+	surface.SizingMode = Enum.SurfaceGuiSizingMode.FixedSize
+	surface.CanvasSize = Vector2.new(camera.ViewportSize.X, camera.ViewportSize.Y)
+	surface.PixelsPerStud = 64
+	surface.LightInfluence = 0
+	surface.AlwaysOnTop = alwaysOnTop
+	surface.ZIndexBehavior = Enum.ZIndexBehavior.Global
+	surface.ResetOnSpawn = false
+	surface.Adornee = panel
+	surface.Parent = panel
+
+	folder.Parent = parent
+
+	local function staysOnScreen(child)
+		return (keepOnScreen and isOverlay(child)) or keepInstances[child] == true
+	end
+
+	-- Move everything to the surface, except the on-screen HUD elements.
+	for _, child in ipairs(gui:GetChildren()) do
+		if not staysOnScreen(child) then
+			child.Parent = surface
+		end
+	end
+
+	-- Wrap ONLY the menu window so we can scale it (and pop it) without
+	-- affecting dropdown / colorpicker / tooltip frames, which stay siblings.
+	local windowFrame = findWindow(surface)
+	local contentScale
+	local disabledDragConnections = {}
+	if windowFrame then
+		local wrapper = Instance.new("Frame")
+		wrapper.Name = "Hood3DWindowWrap"
+		wrapper.BackgroundTransparency = 1
+		wrapper.BorderSizePixel = 0
+		wrapper.AnchorPoint = Vector2.new(0.5, 0.5)
+		wrapper.Position = UDim2.fromScale(0.5, 0.5)
+		wrapper.Size = UDim2.fromScale(1, 1)
+		wrapper.Parent = surface
+
+		contentScale = Instance.new("UIScale")
+		contentScale.Scale = menuScale
+		contentScale.Parent = wrapper
+
+		windowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+		windowFrame.Position = UDim2.fromScale(0.5, 0.5)
+		windowFrame.Parent = wrapper
+
+		-- Kill Scoot's own window-drag so it can't fight the panel drag /
+		-- jiggle against the position lock (that was the "moves then snaps back").
+		-- Keep the connections so we can re-enable them when 3D mode is turned off.
+		local gc = getconnections or (getgenv and getgenv().getconnections)
+		if gc then
+			pcall(function()
+				for _, connection in ipairs(gc(windowFrame.InputBegan)) do
+					connection:Disable()
+					table.insert(disabledDragConnections, connection)
+				end
+			end)
+		end
+	end
+
+	local state = {
+		Panel = panel,
+		Surface = surface,
+		Folder = folder,
+		Window = windowFrame,
+		ContentScale = contentScale,
+		DragOffset = Vector3.new(),
+		BasePosition = panel.Position,
+		BaseSize = panel.Size,
+		PopActive = false,
+		PopStart = 0,
+		Orientation = panel.CFrame.Rotation,
+		Distance = distance,
+		VerticalOffset = verticalOffset,
+		Tilt = tilt,
+		Side = side,
+		Scale = menuScale,
+		AnchorMode = anchorMode,
+		AlwaysOnTop = alwaysOnTop,
+		Enabled = true,
+		Open = false,
+		Connections = {},
+	}
+
+	table.insert(state.Connections, gui.ChildAdded:Connect(function(child)
+		if child.Parent == gui and not staysOnScreen(child) then
+			child.Parent = surface
+		end
+	end))
+
+	local cursor = hideCustomCursor and findCustomCursor(surface) or nil
+
+	------------------------------------------------------------------
+	-- Geometry: canvas == viewport, 1 surface px == 1 screen px.
+	------------------------------------------------------------------
+	local lastVpX, lastVpY, lastFov, lastDist = -1, -1, -1, -1
+
+	local function updateGeometry()
+		local vp = camera.ViewportSize
+		local fov = camera.FieldOfView
+		local dist = state.Distance
+		if vp.X == lastVpX and vp.Y == lastVpY and fov == lastFov and dist == lastDist then
+			return
+		end
+		lastVpX, lastVpY, lastFov, lastDist = vp.X, vp.Y, fov, dist
+
+		local focal = (vp.Y * 0.5) / math.tan(math.rad(fov) * 0.5)
+		local ppu = focal / math.max(dist, 0.1)
+		if ppu <= 0 or ppu ~= ppu then
+			ppu = 64
+		end
+
+		local canvasX = math.max(vp.X, 1)
+		local canvasY = math.max(vp.Y, 1)
+		surface.CanvasSize = Vector2.new(canvasX, canvasY)
+		surface.PixelsPerStud = ppu
+		state.BaseSize = Vector3.new(canvasX / ppu, canvasY / ppu, 0.08)
+		panel.Size = state.BaseSize
+	end
+
+	------------------------------------------------------------------
+	-- Placement
+	------------------------------------------------------------------
+	local function characterPart()
+		local player = Players.LocalPlayer
+		local character = player and player.Character
+		if not character then
+			return nil
+		end
+		return character:FindFirstChild("HumanoidRootPart")
+			or character:FindFirstChild("UpperTorso")
+			or character:FindFirstChild("Torso")
+			or character:FindFirstChild("Head")
+	end
+
+	local function computePlayerTarget()
+		updateGeometry()
+		local part = characterPart()
+		local base = part and part.CFrame or camera.CFrame
+		local flat = Vector3.new(camera.CFrame.LookVector.X, 0, camera.CFrame.LookVector.Z)
+		if flat.Magnitude < 1e-3 then
+			flat = Vector3.new(0, 0, -1)
+		end
+		flat = flat.Unit
+
+		local dir = (state.Side == "Front") and 1 or -1
+		local y = base.Position.Y + state.VerticalOffset
+		local pos = Vector3.new(
+			base.Position.X + flat.X * (state.Distance * dir),
+			y,
+			base.Position.Z + flat.Z * (state.Distance * dir)
+		)
+
+		local camPos = camera.CFrame.Position
+		local rot = (CFrame.lookAt(pos, camPos) * CFrame.Angles(state.Tilt, 0, 0)).Rotation
+		return pos, rot
+	end
+
+	local function computeWorldTarget()
+		local cf = options.CFrame or (camera.CFrame * CFrame.new(0, 0, -state.Distance))
+		return cf.Position, cf.Rotation
+	end
+
+	local function computeTarget()
+		if state.AnchorMode == "World" then
+			return computeWorldTarget()
+		end
+		return computePlayerTarget()
+	end
+
+	-- Base anchor WITHOUT the drag offset. Follows while closed; frozen while open.
+	local function follow()
+		local pos, rot = computeTarget()
+		state.BasePosition = pos
+		state.Orientation = rot
+		return pos, rot
+	end
+
+	local function targetPosition()
+		return state.BasePosition + state.DragOffset
+	end
+
+	------------------------------------------------------------------
+	-- Dragging (stable screen-space delta) + scroll wheel = resize
+	------------------------------------------------------------------
+	local drag = {
+		active = false,
+		startMouse = Vector2.new(),
+		startOffset = Vector3.new(),
+	}
+
+	local function screenRay()
+		local loc = UserInputService:GetMouseLocation()
+		return camera:ViewportPointToRay(loc.X, loc.Y)
+	end
+
+	local function panelHit()
+		if not panel.Parent then
+			return nil
+		end
+		local ray = screenRay()
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Include
+		params.FilterDescendantsInstances = { panel }
+		local previous = panel.CanQuery
+		panel.CanQuery = true
+		local result = Workspace:Raycast(ray.Origin, ray.Direction * 2000, params)
+		panel.CanQuery = previous
+		return result
+	end
+
+	local function isDragGrab(result)
+		if not result then
+			return false
+		end
+		if dragKey and UserInputService:IsKeyDown(dragKey) then
+			return true
+		end
+		local localPos = panel.CFrame:PointToObjectSpace(result.Position)
+		local canvasY = (panel.Size.Y * 0.5 - localPos.Y) * surface.PixelsPerStud
+		local windowTop = (windowFrame and windowFrame.AbsolutePosition.Y) or 0
+		return canvasY < (windowTop + 40) -- the top bar of the window + area above it
+	end
+
+	table.insert(state.Connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then
+			return
+		end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			if isDragGrab(panelHit()) then
+				drag.active = true
+				drag.startMouse = UserInputService:GetMouseLocation()
+				drag.startOffset = state.DragOffset
+			end
+		end
+	end))
+
+	table.insert(state.Connections, UserInputService.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			if not drag.active then
+				return
+			end
+			local delta = UserInputService:GetMouseLocation() - drag.startMouse
+			local vp = camera.ViewportSize
+			local focal = (vp.Y * 0.5) / math.tan(math.rad(camera.FieldOfView) * 0.5)
+			local dist = (panel.Position - camera.CFrame.Position).Magnitude
+			local worldScale = (dist / math.max(focal, 1)) * dragScale
+			-- move within the camera's screen plane (right / up), like dragging on glass
+			local offset = camera.CFrame.RightVector * (delta.X * worldScale)
+				+ camera.CFrame.UpVector * (-delta.Y * worldScale)
+			state.DragOffset = drag.startOffset + offset
+		end
+	end))
+
+	table.insert(state.Connections, UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			drag.active = false
+		end
+	end))
+
+	------------------------------------------------------------------
+	-- Open / close + little open "pop"
+	------------------------------------------------------------------
+	local function isOpen()
+		if windowFrame then
+			return windowFrame.Visible
+		end
+		return gui.Enabled
+	end
+
+	-- Pop by scaling the PART (cheap) instead of a UIScale (which would force
+	-- the whole menu to re-layout every frame).
+	local function playOpenEffect()
+		if popTime <= 0 then
+			return
+		end
+		state.PopActive = true
+		state.PopStart = os.clock()
+	end
+
+	local wasOpen = false
+
+	local function refresh()
+		local open = gui.Enabled and isOpen()
+		state.Open = open
+
+		if open and not wasOpen then
+			-- Land at the player's current spot and freeze there.
+			state.DragOffset = Vector3.new()
+			local pos, rot = computeTarget()
+			state.BasePosition = pos
+			state.Orientation = rot
+			playOpenEffect()
+		end
+		wasOpen = open
+	end
+
+	table.insert(state.Connections, gui:GetPropertyChangedSignal("Enabled"):Connect(refresh))
+	if windowFrame then
+		table.insert(state.Connections, windowFrame:GetPropertyChangedSignal("Visible"):Connect(refresh))
+	end
+
+	if reanchorKey then
+		table.insert(state.Connections, UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if not gameProcessed and input.KeyCode == reanchorKey then
+				state.DragOffset = Vector3.new()
+				follow()
+			end
+		end))
+	end
+
+	------------------------------------------------------------------
+	-- Frame loop
+	------------------------------------------------------------------
+	local lastSurfaceEnabled, lastCanQuery, lastWindowPos, lastCFrame
+
+	table.insert(state.Connections, RunService.RenderStepped:Connect(function(dt)
+		if hideCustomCursor then
+			if not UserInputService.MouseIconEnabled then
+				UserInputService.MouseIconEnabled = true
+			end
+			if cursor and cursor.Parent and cursor.Visible then
+				cursor.Visible = false
+			end
+		end
+
+		-- Follow only while the menu is closed; once open it stays put.
+		if not state.Open then
+			follow()
+		end
+
+		local target = targetPosition()
+		-- snap the follow fast while actively dragging so it tracks the cursor
+		local rate = drag.active and math.max(smoothing, 60) or smoothing
+		local alpha = 1 - math.exp(-dt * rate)
+		local nextPos = panel.Position:Lerp(target, alpha)
+		if (nextPos - target).Magnitude < 0.002 then
+			nextPos = target
+		end
+		local targetCFrame = CFrame.new(nextPos) * state.Orientation
+		-- Skip redundant writes so a still panel costs nothing per frame.
+		if not lastCFrame or not lastCFrame:FuzzyEq(targetCFrame, 0.0005) then
+			lastCFrame = targetCFrame
+			panel.CFrame = targetCFrame
+		end
+
+		-- Open "pop" (scales the part, no GUI re-layout).
+		if state.PopActive then
+			local t = (os.clock() - state.PopStart) / popTime
+			if t >= 1 then
+				state.PopActive = false
+				panel.Size = state.BaseSize
+			else
+				local c1 = 1.70158
+				local back = 1 + (c1 + 1) * ((t - 1) ^ 3) + c1 * ((t - 1) ^ 2)
+				panel.Size = state.BaseSize * (0.85 + 0.15 * back)
+			end
+		end
+
+		if lockWindow and windowFrame and windowFrame.Position ~= lastWindowPos then
+			windowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+			windowFrame.Position = UDim2.fromScale(0.5, 0.5)
+			lastWindowPos = windowFrame.Position
+		end
+
+		local enabled = gui.Enabled
+		if enabled ~= lastSurfaceEnabled then
+			lastSurfaceEnabled = enabled
+			surface.Enabled = enabled
+		end
+		local cq = canQuery and state.Open
+		if cq ~= lastCanQuery then
+			lastCanQuery = cq
+			panel.CanQuery = cq
+		end
+	end))
+
+	function state:Reanchor()
+		self.DragOffset = Vector3.new()
+		follow()
+		panel.CFrame = CFrame.new(targetPosition()) * self.Orientation
+	end
+
+	function state:SetDistance(value)
+		self.Distance = tonumber(value) or self.Distance
+	end
+
+	function state:SetScale(value)
+		self.Scale = math.clamp(tonumber(value) or self.Scale, 0.2, 2.5)
+		if self.ContentScale then
+			self.ContentScale.Scale = self.Scale
+		end
+	end
+
+	function state:SetAnchorMode(mode)
+		self.AnchorMode = tostring(mode or self.AnchorMode)
+	end
+
+	function state:SetEnabled(value)
+		gui.Enabled = value and true or false
+	end
+
+	function state:Destroy()
+		for _, connection in ipairs(self.Connections) do
+			pcall(function()
+				connection:Disconnect()
+			end)
+		end
+		table.clear(self.Connections)
+
+		-- Restore Scoot's window-drag (we disabled it while 3D was active).
+		for _, connection in ipairs(disabledDragConnections) do
+			pcall(function()
+				connection:Enable()
+			end)
+		end
+		table.clear(disabledDragConnections)
+
+		pcall(function()
+			folder:Destroy()
+		end)
+		UserInputService.MouseIconEnabled = true
+	end
+
+	follow()
+	panel.CFrame = CFrame.new(targetPosition()) * state.Orientation
+	refresh()
+
+	return state
+end
+
+getgenv().Hood3D = Hood3D
+getgenv().Hood3D_Mount = Hood3D.Mount
+
+return Hood3D
+
+    end)()
+
+    Library.Hood3DPresenter = Hood3DPresenter
+    Library.ThreeDUI = { Desired = false, Mounted = nil }
+
+    function Library.Apply3D()
+        local Window = Library.CurrentWindow
+        if not Window then
+            return
+        end
+
+        if Library.ThreeDUI.Desired and not Library.ThreeDUI.Mounted then
+            local ok, mounted = pcall(Hood3DPresenter.Mount, Library, {
+                AnchorMode = "Player",
+                Side = "Front",
+                Distance = 5,
+                VerticalOffset = 0,
+                Tilt = 9,
+                Scale = 1.5,
+                Smoothness = 9,
+                DragScale = 0.8,
+                DragKey = Enum.KeyCode.LeftAlt,
+                PopTime = 0.3,
+                LockWindow = true,
+                AlwaysOnTop = false,
+                KeepOnScreen = true,
+                HideCustomCursor = true,
+                CanQuery = true,
+            })
+            if ok and mounted then
+                Library.ThreeDUI.Mounted = mounted
+                getgenv().Hood3DUI = mounted
+            end
+        elseif not Library.ThreeDUI.Desired and Library.ThreeDUI.Mounted then
+            local mounted = Library.ThreeDUI.Mounted
+            local holder = Library.Holder.Instance
+            pcall(function()
+                local surface = mounted.Surface
+                if surface then
+                    for _, child in ipairs(surface:GetChildren()) do
+                        if child.Name == "Hood3DWindowWrap" then
+                            for _, sub in ipairs(child:GetChildren()) do
+                                if sub:IsA("GuiObject") then
+                                    sub.AnchorPoint = Vector2.new(0, 0)
+                                    sub.Position = UDim2.fromScale(0.3, 0.3)
+                                    sub.Parent = holder
+                                end
+                            end
+                        else
+                            child.Parent = holder
+                        end
+                    end
+                end
+            end)
+            pcall(function()
+                mounted:Destroy()
+            end)
+            Library.ThreeDUI.Mounted = nil
+            getgenv().Hood3DUI = nil
+        end
+    end
+
+    Library.OnThreeDUI = function(value)
+        Library.ThreeDUI.Desired = value
+        pcall(function()
+            Library:Notification("3D UI", value and "Reopen the menu to switch to 3D" or "Reopen the menu to go back to 2D", 4)
+        end)
+    end
+    -- ==================================================================================
 
 getgenv().Library = Library
 return Library
