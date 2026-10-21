@@ -8524,7 +8524,6 @@ local Library do
         local skyOffset = { }
         local skyFontName = nil
         local skyKey = nil
-        local skyDir = nil
         local skyPos = nil
         local SkyWordLabels = { }
         local skyWordLine = nil
@@ -8547,7 +8546,7 @@ local Library do
             AlwaysOnTop = false,
             LightInfluence = 0,
             MaxDistance = 100000,
-            Size = UDim2New(640, 0, 160, 0),
+            Size = UDim2New(900, 0, 220, 0),
             Enabled = false,
         })
 
@@ -8851,26 +8850,21 @@ local Library do
             dt = dt or 0
             local t = os.clock()
 
-            -- Direction is chosen once. Turning the camera does not move the
-            -- words; they live in one spot in the sky.
-            if not skyDir then
+            -- Placed once, far out in the sky, and then never moved again.
+            -- Walking, turning, or changing camera angle does not affect it.
+            if not skyPos then
                 local look = camera.CFrame.LookVector
                 local flat = Vector3.new(look.X, 0, look.Z)
                 if flat.Magnitude < 0.001 then
                     flat = Vector3.new(0, 0, -1)
                 end
-                skyDir = flat.Unit
-            end
+                flat = flat.Unit
 
-            local target = root.Position
-                + skyDir * 600
-                + Vector3.new(0, 360 + math.sin(t * 0.7) * 8, 0)
-
-            if not skyPos then
-                skyPos = target
+                skyPos = root.Position
+                    + flat * 800
+                    + Vector3.new(0, 520, 0)
+                anchor.CFrame = CFrame.new(skyPos)
             end
-            skyPos = skyPos:Lerp(target, 1 - math.exp(-dt * 4))
-            anchor.CFrame = CFrame.new(skyPos)
 
             local mid = math.floor(SKY_LINES / 2) + 1
             local fontChanged = skyFontName ~= Library.FontName
