@@ -8526,6 +8526,11 @@ local Library do
         local skyKey = nil
         local skyDir = nil
         local skyPos = nil
+        local SkyWordLabels = { }
+        local skyWordLine = nil
+        local skyWordCount = 0
+        local skyWordSize = 36
+        local skySizerText = nil
 
         Items["SkyAnchor"] = Instances:Create("Part", {
             Parent = Workspace,
@@ -8539,10 +8544,10 @@ local Library do
             Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"),
             Name = "SpotifySkyLyrics",
             Adornee = Items["SkyAnchor"].Instance,
-            AlwaysOnTop = true,
+            AlwaysOnTop = false,
             LightInfluence = 0,
             MaxDistance = 100000,
-            Size = UDim2New(900, 0, 200, 0),
+            Size = UDim2New(640, 0, 160, 0),
             Enabled = false,
         })
 
@@ -8567,6 +8572,84 @@ local Library do
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextYAlignment = Enum.TextYAlignment.Center,
             })  SkyLabels[i]:AddToTheme({ TextColor3 = "Text", TextStrokeColor3 = "Text Stroke" })
+        end
+
+        -- Invisible full-line label: used only to measure the line so the
+        -- word-by-word labels all share one stable text size (no rescaling).
+        Items["SkySizer"] = Instances:Create("TextLabel", {
+            Parent = Items["Sky"].Instance, Name = "\0",
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            Position = UDim2New(0, 0, 0.30, 0), Size = UDim2New(1, 0, 0.40, 0),
+            FontFace = Library.Font, Text = "", TextScaled = true,
+            TextTransparency = 1, TextStrokeTransparency = 1,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextYAlignment = Enum.TextYAlignment.Center,
+        })
+
+        Items["SkyWords"] = Instances:Create("Frame", {
+            Parent = Items["Sky"].Instance, Name = "\0",
+            BackgroundTransparency = 1, BorderSizePixel = 0,
+            Position = UDim2New(0, 0, 0.30, 0), Size = UDim2New(1, 0, 0.40, 0),
+            Visible = false,
+        })
+
+        Instances:Create("UIListLayout", {
+            Parent = Items["SkyWords"].Instance,
+            FillDirection = Enum.FillDirection.Horizontal,
+            HorizontalAlignment = Enum.HorizontalAlignment.Center,
+            VerticalAlignment = Enum.VerticalAlignment.Center,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+            Padding = UDimNew(0, 8),
+        })
+
+        local function clearSkyWords()
+            for i = #SkyWordLabels, 1, -1 do
+                local lbl = SkyWordLabels[i]
+                if lbl then lbl:Clean() end
+                SkyWordLabels[i] = nil
+            end
+            skyWordCount = 0
+        end
+
+        local function styleSkyWord(lbl, current, animate)
+            if not lbl or not lbl.Instance then return end
+            local inst = lbl.Instance
+            local color = current and Library.Theme.Accent or Library.Theme.Text
+            local transparency = current and 0 or 0.16
+            local stroke = current and 0.45 or 0.7
+
+            if animate then
+                TweenService:Create(inst, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    TextColor3 = color,
+                    TextTransparency = transparency,
+                    TextStrokeTransparency = stroke,
+                }):Play()
+            else
+                inst.TextColor3 = color
+                inst.TextTransparency = transparency
+                inst.TextStrokeTransparency = stroke
+            end
+        end
+
+        local function newSkyWord(index, word, size, current)
+            local lbl = Instances:Create("TextLabel", {
+                Parent = Items["SkyWords"].Instance, Name = "\0",
+                BackgroundTransparency = 1, BorderSizePixel = 0,
+                Size = UDim2New(0, 0, 1, 0),
+                AutomaticSize = Enum.AutomaticSize.X,
+                TextScaled = false, TextSize = size,
+                FontFace = Library.Font,
+                Text = word,
+                TextColor3 = current and Library.Theme.Accent or Library.Theme.Text,
+                TextTransparency = 1,
+                TextStrokeColor3 = FromRGB(0, 0, 0),
+                TextStrokeTransparency = current and 0.45 or 0.7,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                LayoutOrder = index,
+            })
+            SkyWordLabels[index] = lbl
+            return lbl
         end
 
         -- layout --------------------------------------------------------------
@@ -8766,9 +8849,10 @@ local Library do
 
             sky.Enabled = true
             dt = dt or 0
+            local t = os.clock()
 
-            -- The direction is picked once and then never follows the camera, so
-            -- the words stay put in the world (you have to turn to look at them).
+            -- Direction is chosen once. Turning the camera does not move the
+            -- words; they live in one spot in the sky.
             if not skyDir then
                 local look = camera.CFrame.LookVector
                 local flat = Vector3.new(look.X, 0, look.Z)
@@ -8778,12 +8862,10 @@ local Library do
                 skyDir = flat.Unit
             end
 
-            local t = os.clock()
             local target = root.Position
-                + skyDir * 900
-                + Vector3.new(0, 460 + math.sin(t * 0.7) * 8, 0)
+                + skyDir * 600
+                + Vector3.new(0, 360 + math.sin(t * 0.7) * 8, 0)
 
-            -- Smoothly glide the anchor instead of snapping to the player.
             if not skyPos then
                 skyPos = target
             end
@@ -8791,11 +8873,13 @@ local Library do
             anchor.CFrame = CFrame.new(skyPos)
 
             local mid = math.floor(SKY_LINES / 2) + 1
-            if skyFontName ~= Library.FontName then
+            local fontChanged = skyFontName ~= Library.FontName
+            if fontChanged then
                 skyFontName = Library.FontName
                 for i = 1, SKY_LINES do
                     SkyLabels[i].Instance.FontFace = Library.Font
                 end
+                Items["SkySizer"].Instance.FontFace = Library.Font
             end
 
             local function wordsOf(text)
@@ -8806,11 +8890,12 @@ local Library do
                 return words
             end
 
-            local texts = { "", "", "" }
-            local key = ""
-            local activeMid = true
-
             if #state.lyrics == 0 then
+                Items["SkyWords"].Instance.Visible = false
+                for i = 1, SKY_LINES do
+                    SkyLabels[i].Instance.Visible = true
+                end
+
                 local msg = ""
                 if state.title ~= "" then
                     msg = state.title .. (state.artist ~= "" and ("  -  " .. state.artist) or "")
@@ -8821,45 +8906,111 @@ local Library do
                     sky.Enabled = false
                     return
                 end
-                texts[mid] = msg
-                key = "title:" .. msg
-            elseif Spotify.Cfg.skyWords then
+
+                local key = "title:" .. msg
+                if key ~= skyKey then
+                    skyKey = key
+                    skyAlpha[mid] = 1
+                    skyOffset[mid] = 0.06
+                end
+
+                local alphaRate = 1 - math.exp(-dt * 14)
+                local offsetRate = 1 - math.exp(-dt * 10)
+                for i = 1, SKY_LINES do
+                    local lbl = SkyLabels[i].Instance
+                    local active = i == mid
+                    local text = active and msg or ""
+                    local targetAlpha = active and 0 or 0.55
+                    lbl.Text = text
+                    lbl.TextColor3 = active and Library.Theme.Accent or Library.Theme.Text
+                    skyAlpha[i] = skyAlpha[i] + (targetAlpha - skyAlpha[i]) * alphaRate
+                    skyOffset[i] = skyOffset[i] + (0 - skyOffset[i]) * offsetRate
+                    lbl.TextTransparency = skyAlpha[i]
+                    lbl.Position = UDim2New(0, 0, skyRows[i] + skyOffset[i], 0)
+                end
+                return
+            end
+
+            local wordMode = Spotify.Cfg.skyWords
+            Items["SkyWords"].Instance.Visible = wordMode
+            for i = 1, SKY_LINES do
+                SkyLabels[i].Instance.Visible = not wordMode
+            end
+
+            if wordMode then
+                local lineKey, words, count, fullText
+
                 if state.synced then
                     local idx = math.max(currentIndex(dpos), 1)
                     local line = state.lyrics[idx]
-                    local words = wordsOf(line and line.text or "")
+                    words = wordsOf(line and line.text or "")
+                    if #words == 0 then words = { "\u{266A}" } end
                     local startT = (line and line.time) or 0
                     local nextT = (state.lyrics[idx + 1] and state.lyrics[idx + 1].time)
-                        or (startT + math.max(2, #words * 0.45))
-                    local span = math.max(nextT - startT, 0.05)
-                    local wi = 1
-                    if #words > 0 then
-                        local progress = math.clamp((dpos - startT) / span, 0, 0.9999)
-                        wi = math.clamp(math.floor(progress * #words) + 1, 1, #words)
-                    end
-                    texts[mid] = words[wi] or "\u{266A}"
-                    texts[mid - 1] = words[wi - 1] or ""
-                    texts[mid + 1] = words[wi + 1] or ""
-                    key = "w:" .. idx .. ":" .. wi
+                        or (startT + math.max(2.5, #words * 0.5))
+                    local progress = math.clamp((dpos - startT) / math.max(nextT - startT, 0.05), 0, 0.9999)
+                    count = math.clamp(math.floor(progress * #words) + 1, 1, #words)
+                    fullText = table.concat(words, " ")
+                    lineKey = "s:" .. idx
                 else
-                    local all = { }
-                    for _, l in ipairs(state.lyrics) do
-                        for word in tostring(l.text or ""):gmatch("%S+") do
-                            all[#all + 1] = word
-                        end
+                    local lineDur = 3.2
+                    local li = math.floor(t / lineDur) % #state.lyrics + 1
+                    local line = state.lyrics[li]
+                    words = wordsOf(line and line.text or "")
+                    if #words == 0 then words = { "\u{266A}" } end
+                    local progress = (t % lineDur) / lineDur
+                    count = math.clamp(math.floor(progress * #words) + 1, 1, #words)
+                    fullText = table.concat(words, " ")
+                    lineKey = "p:" .. li
+                end
+
+                -- The visible word labels all share the size of the whole line,
+                -- so text never re-scales as each word is written out.
+                local sizer = Items["SkySizer"].Instance
+                if skySizerText ~= fullText then
+                    skySizerText = fullText
+                    sizer.Text = fullText
+                end
+                local bounds = sizer.TextBounds
+                if bounds.Y > 1 then
+                    skyWordSize = math.clamp(bounds.Y * 0.85, 12, 96)
+                end
+                local size = skyWordSize
+
+                if skyWordLine ~= lineKey or count < skyWordCount then
+                    clearSkyWords()
+                    skyWordLine = lineKey
+                    for i = 1, count do
+                        local lbl = newSkyWord(i, words[i] or "", size, i == count)
+                        styleSkyWord(lbl, i == count, true)
                     end
-                    if #all == 0 then
-                        texts[mid] = state.lyricStatus or ""
-                        key = "u:none"
-                    else
-                        local wi = math.floor(t / 0.5) % #all + 1
-                        texts[mid] = all[wi]
-                        texts[mid - 1] = all[(wi - 2) % #all + 1]
-                        texts[mid + 1] = all[wi % #all + 1]
-                        key = "u:" .. wi
+                    skyWordCount = count
+                elseif count > skyWordCount then
+                    local old = skyWordCount
+                    for i = old + 1, count do
+                        local lbl = newSkyWord(i, words[i] or "", size, i == count)
+                        styleSkyWord(lbl, i == count, true)
+                    end
+                    local prev = SkyWordLabels[old]
+                    if prev then styleSkyWord(prev, false, true) end
+                    skyWordCount = count
+                end
+
+                for i = 1, #SkyWordLabels do
+                    local inst = SkyWordLabels[i] and SkyWordLabels[i].Instance
+                    if inst then
+                        if fontChanged then inst.FontFace = Library.Font end
+                        if math.abs(inst.TextSize - size) > 0.5 then inst.TextSize = size end
                     end
                 end
-            elseif state.synced then
+                return
+            end
+
+            local texts = { "", "", "" }
+            local key = ""
+            local activeMid = true
+
+            if state.synced then
                 local idx = math.max(currentIndex(dpos), 1)
                 for i = 1, SKY_LINES do
                     local l = state.lyrics[idx + (i - mid)]
@@ -8875,16 +9026,10 @@ local Library do
                 key = "p:1"
             end
 
-            -- New line/word: fade it in and float it up a touch.
             if key ~= skyKey then
                 skyKey = key
-                if Spotify.Cfg.skyWords then
-                    skyAlpha[mid] = 0.9
-                    skyOffset[mid] = 0.035
-                else
-                    skyAlpha[mid] = 1
-                    skyOffset[mid] = 0.06
-                end
+                skyAlpha[mid] = 1
+                skyOffset[mid] = 0.06
             end
 
             local alphaRate = 1 - math.exp(-dt * 14)
