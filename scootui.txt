@@ -752,7 +752,7 @@ local Library do
 
     -- Custom fonts
     Library.Fonts = { }
-    Library.FontName = "Monaco"
+    Library.FontName = "Prompt"
 
     Library.FontList = {
         ["Tahoma XP"] = {Id = "TahomaXP", Url = "https://github.com/sametexe001/luas/raw/refs/heads/main/fonts/windows-xp-tahoma.ttf"},
@@ -8239,7 +8239,7 @@ local Library do
             Bridge = Data.Bridge or "http://127.0.0.1:8889",
             Poll = Data.Poll or 2,
             Icons = Data.Icons or getgenv().SpotifyIcons or { },
-            Cfg = { lyrics = true, art = true, progress = true, controls = true },
+            Cfg = { lyrics = true, art = true, progress = true, controls = true, skyLyrics = true },
         }
 
         local HS = HttpService
@@ -8510,8 +8510,56 @@ local Library do
                 Position = UDim2New(0, 10, 0, 140 + (i - 1) * 22), Size = UDim2New(1, -20, 0, 22),
                 BackgroundTransparency = 1, TextXAlignment = Enum.TextXAlignment.Center,
                 TextTruncate = Enum.TextTruncate.AtEnd, BorderSizePixel = 0, Visible = false,
-            })  Items["Lyrics"][i]:AddToTheme({ TextColor3 = "Text" })
+            })              Items["Lyrics"][i]:AddToTheme({ TextColor3 = "Text" })
             Items["Lyrics"][i]:TextBorder()
+        end
+
+        -- sky lyrics: the words are written far out in the sky, not attached to
+        -- the player. A local anchor part is parked high in front of the camera
+        -- and the billboard floats there, gently bobbing.
+        local SKY_LINES = 3
+        local SkyLabels = { }
+        local skyFontName = nil
+        local skyIndex = nil
+        local skyChangeAt = 0
+
+        Items["SkyAnchor"] = Instances:Create("Part", {
+            Parent = Workspace,
+            Name = "SpotifySkyAnchor",
+            Anchored = true, CanCollide = false, CanTouch = false, CanQuery = false,
+            CastShadow = false, Transparency = 1, Size = Vector3.new(1, 1, 1),
+            CFrame = CFrame.new(0, -500, 0),
+        })
+
+        Items["Sky"] = Instances:Create("BillboardGui", {
+            Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"),
+            Name = "SpotifySkyLyrics",
+            Adornee = Items["SkyAnchor"].Instance,
+            AlwaysOnTop = true,
+            LightInfluence = 0,
+            MaxDistance = 100000,
+            Size = UDim2New(900, 0, 200, 0),
+            Enabled = false,
+        })
+
+        for i = 1, SKY_LINES do
+            local isMiddle = (i == math.floor(SKY_LINES / 2) + 1)
+            local rowTop = ({ 0, 0.30, 0.74 })[i]
+            local rowHeight = isMiddle and 0.40 or 0.24
+            SkyLabels[i] = Instances:Create("TextLabel", {
+                Parent = Items["Sky"].Instance, Name = "\0",
+                BackgroundTransparency = 1, BorderSizePixel = 0,
+                Position = UDim2New(0, 0, rowTop, 0),
+                Size = UDim2New(1, 0, rowHeight, 0),
+                FontFace = Library.Font, Text = "",
+                TextScaled = true,
+                TextColor3 = FromRGB(235, 235, 235),
+                TextTransparency = 0.55,
+                TextStrokeColor3 = FromRGB(0, 0, 0),
+                TextStrokeTransparency = isMiddle and 0.25 or 0.55,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                TextYAlignment = Enum.TextYAlignment.Center,
+            })  SkyLabels[i]:AddToTheme({ TextColor3 = "Text", TextStrokeColor3 = "Text Stroke" })
         end
 
         -- layout --------------------------------------------------------------
@@ -8587,6 +8635,9 @@ local Library do
                 for k, v in pairs(cfg) do Spotify.Cfg[k] = v end
             end
             layout()
+            if Items["Sky"] then
+                Items["Sky"].Instance.Enabled = Spotify.Visible and Spotify.Cfg.skyLyrics or false
+            end
         end
 
         -- state + render ------------------------------------------------------
@@ -8693,6 +8744,90 @@ local Library do
             end
         end
 
+        local function drawSky(dpos)
+            local sky = Items["Sky"] and Items["Sky"].Instance
+            local anchor = Items["SkyAnchor"] and Items["SkyAnchor"].Instance
+            if not sky or not anchor then return end
+
+            local camera = Workspace.CurrentCamera
+            local char = LocalPlayer and LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if not (Spotify.Visible and Spotify.Cfg.skyLyrics and camera and root) then
+                sky.Enabled = false
+                return
+            end
+
+            sky.Enabled = true
+
+            -- Park the words far out in the sky, ahead of where you're facing,
+            -- so they read as world text instead of a HUD stacked on your head.
+            local look = camera.CFrame.LookVector
+            local flat = Vector3.new(look.X, 0, look.Z)
+            if flat.Magnitude < 0.001 then
+                flat = Vector3.new(0, 0, -1)
+            end
+            flat = flat.Unit
+
+            local t = os.clock()
+            anchor.CFrame = CFrame.new(
+                root.Position
+                    + flat * 900
+                    + Vector3.new(0, 460 + math.sin(t * 0.7) * 8, 0)
+            )
+
+            local mid = math.floor(SKY_LINES / 2) + 1
+            if skyFontName ~= Library.FontName then
+                skyFontName = Library.FontName
+                for i = 1, SKY_LINES do
+                    SkyLabels[i].Instance.FontFace = Library.Font
+                end
+            end
+
+            local function put(i, text, active, transparency)
+                local lbl = SkyLabels[i] and SkyLabels[i].Instance
+                if not lbl then return end
+                lbl.Text = text or ""
+                lbl.TextColor3 = active and Library.Theme.Accent or Library.Theme.Text
+                lbl.TextTransparency = transparency or 0.55
+            end
+
+            if #state.lyrics == 0 then
+                local msg = ""
+                if state.title ~= "" then
+                    msg = state.title .. (state.artist ~= "" and ("  -  " .. state.artist) or "")
+                else
+                    msg = state.lyricStatus or ""
+                end
+                if msg == "" then
+                    sky.Enabled = false
+                    return
+                end
+                for i = 1, SKY_LINES do
+                    if i == mid then put(i, msg, true, 0) else put(i, "", false, 0.55) end
+                end
+                return
+            end
+
+            if state.synced then
+                local idx = math.max(currentIndex(dpos), 1)
+                if idx ~= skyIndex then
+                    skyIndex = idx
+                    skyChangeAt = t
+                end
+                local fade = math.clamp((t - skyChangeAt) / 0.25, 0, 1)
+                for i = 1, SKY_LINES do
+                    local l = state.lyrics[idx + (i - mid)]
+                    local text = l and ((l.text ~= "" and l.text) or "\u{266A}") or ""
+                    put(i, text, i == mid, i == mid and (1 - fade) or 0.55)
+                end
+            else
+                for i = 1, SKY_LINES do
+                    local l = state.lyrics[i]
+                    put(i, l and l.text or "", false, 0.4)
+                end
+            end
+        end
+
         Library:Connect(RunService.RenderStepped, function()
             if not Spotify.Visible then return end
             Items["Track"].Instance.Text = state.title ~= "" and state.title or "Nothing playing"
@@ -8708,12 +8843,16 @@ local Library do
             Items["Elapsed"].Instance.Text = fmt(dpos)
             Items["Remaining"].Instance.Text = "-" .. fmt(math.max(state.dur - dpos, 0))
             drawLyrics(dpos)
+            drawSky(dpos)
         end)
 
         local pollRunning = false
         function Spotify:SetVisibility(Bool)
             Spotify.Visible = Bool
             Items["Panel"].Instance.Visible = Bool
+            if Items["Sky"] then
+                Items["Sky"].Instance.Enabled = Bool and Spotify.Cfg.skyLyrics or false
+            end
             if Bool then
                 layout()
                 Library:Thread(function()
@@ -8729,6 +8868,8 @@ local Library do
         end
 
         function Spotify:Destroy()
+            if Items["Sky"] then Items["Sky"]:Clean() end
+            if Items["SkyAnchor"] then Items["SkyAnchor"]:Clean() end
             if Items["Panel"] then Items["Panel"]:Clean() end
             if Items["Screen"] then Items["Screen"]:Clean() end
             Spotify.Visible = false
