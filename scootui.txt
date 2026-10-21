@@ -8239,7 +8239,7 @@ local Library do
             Bridge = Data.Bridge or "http://127.0.0.1:8889",
             Poll = Data.Poll or 2,
             Icons = Data.Icons or getgenv().SpotifyIcons or { },
-            Cfg = { lyrics = true, art = true, progress = true, controls = true, skyLyrics = true },
+            Cfg = { lyrics = true, art = true, progress = true, controls = true, skyLyrics = true, skyWords = false },
         }
 
         local HS = HttpService
@@ -8519,9 +8519,13 @@ local Library do
         -- and the billboard floats there, gently bobbing.
         local SKY_LINES = 3
         local SkyLabels = { }
+        local skyRows = { }
+        local skyAlpha = { }
+        local skyOffset = { }
         local skyFontName = nil
-        local skyIndex = nil
-        local skyChangeAt = 0
+        local skyKey = nil
+        local skyDir = nil
+        local skyPos = nil
 
         Items["SkyAnchor"] = Instances:Create("Part", {
             Parent = Workspace,
@@ -8546,6 +8550,9 @@ local Library do
             local isMiddle = (i == math.floor(SKY_LINES / 2) + 1)
             local rowTop = ({ 0, 0.30, 0.74 })[i]
             local rowHeight = isMiddle and 0.40 or 0.24
+            skyRows[i] = rowTop
+            skyAlpha[i] = 1
+            skyOffset[i] = 0
             SkyLabels[i] = Instances:Create("TextLabel", {
                 Parent = Items["Sky"].Instance, Name = "\0",
                 BackgroundTransparency = 1, BorderSizePixel = 0,
@@ -8744,7 +8751,7 @@ local Library do
             end
         end
 
-        local function drawSky(dpos)
+        local function drawSky(dpos, dt)
             local sky = Items["Sky"] and Items["Sky"].Instance
             local anchor = Items["SkyAnchor"] and Items["SkyAnchor"].Instance
             if not sky or not anchor then return end
@@ -8758,22 +8765,30 @@ local Library do
             end
 
             sky.Enabled = true
+            dt = dt or 0
 
-            -- Park the words far out in the sky, ahead of where you're facing,
-            -- so they read as world text instead of a HUD stacked on your head.
-            local look = camera.CFrame.LookVector
-            local flat = Vector3.new(look.X, 0, look.Z)
-            if flat.Magnitude < 0.001 then
-                flat = Vector3.new(0, 0, -1)
+            -- The direction is picked once and then never follows the camera, so
+            -- the words stay put in the world (you have to turn to look at them).
+            if not skyDir then
+                local look = camera.CFrame.LookVector
+                local flat = Vector3.new(look.X, 0, look.Z)
+                if flat.Magnitude < 0.001 then
+                    flat = Vector3.new(0, 0, -1)
+                end
+                skyDir = flat.Unit
             end
-            flat = flat.Unit
 
             local t = os.clock()
-            anchor.CFrame = CFrame.new(
-                root.Position
-                    + flat * 900
-                    + Vector3.new(0, 460 + math.sin(t * 0.7) * 8, 0)
-            )
+            local target = root.Position
+                + skyDir * 900
+                + Vector3.new(0, 460 + math.sin(t * 0.7) * 8, 0)
+
+            -- Smoothly glide the anchor instead of snapping to the player.
+            if not skyPos then
+                skyPos = target
+            end
+            skyPos = skyPos:Lerp(target, 1 - math.exp(-dt * 4))
+            anchor.CFrame = CFrame.new(skyPos)
 
             local mid = math.floor(SKY_LINES / 2) + 1
             if skyFontName ~= Library.FontName then
@@ -8783,13 +8798,17 @@ local Library do
                 end
             end
 
-            local function put(i, text, active, transparency)
-                local lbl = SkyLabels[i] and SkyLabels[i].Instance
-                if not lbl then return end
-                lbl.Text = text or ""
-                lbl.TextColor3 = active and Library.Theme.Accent or Library.Theme.Text
-                lbl.TextTransparency = transparency or 0.55
+            local function wordsOf(text)
+                local words = { }
+                for word in tostring(text or ""):gmatch("%S+") do
+                    words[#words + 1] = word
+                end
+                return words
             end
+
+            local texts = { "", "", "" }
+            local key = ""
+            local activeMid = true
 
             if #state.lyrics == 0 then
                 local msg = ""
@@ -8802,33 +8821,90 @@ local Library do
                     sky.Enabled = false
                     return
                 end
-                for i = 1, SKY_LINES do
-                    if i == mid then put(i, msg, true, 0) else put(i, "", false, 0.55) end
+                texts[mid] = msg
+                key = "title:" .. msg
+            elseif Spotify.Cfg.skyWords then
+                if state.synced then
+                    local idx = math.max(currentIndex(dpos), 1)
+                    local line = state.lyrics[idx]
+                    local words = wordsOf(line and line.text or "")
+                    local startT = (line and line.time) or 0
+                    local nextT = (state.lyrics[idx + 1] and state.lyrics[idx + 1].time)
+                        or (startT + math.max(2, #words * 0.45))
+                    local span = math.max(nextT - startT, 0.05)
+                    local wi = 1
+                    if #words > 0 then
+                        local progress = math.clamp((dpos - startT) / span, 0, 0.9999)
+                        wi = math.clamp(math.floor(progress * #words) + 1, 1, #words)
+                    end
+                    texts[mid] = words[wi] or "\u{266A}"
+                    texts[mid - 1] = words[wi - 1] or ""
+                    texts[mid + 1] = words[wi + 1] or ""
+                    key = "w:" .. idx .. ":" .. wi
+                else
+                    local all = { }
+                    for _, l in ipairs(state.lyrics) do
+                        for word in tostring(l.text or ""):gmatch("%S+") do
+                            all[#all + 1] = word
+                        end
+                    end
+                    if #all == 0 then
+                        texts[mid] = state.lyricStatus or ""
+                        key = "u:none"
+                    else
+                        local wi = math.floor(t / 0.5) % #all + 1
+                        texts[mid] = all[wi]
+                        texts[mid - 1] = all[(wi - 2) % #all + 1]
+                        texts[mid + 1] = all[wi % #all + 1]
+                        key = "u:" .. wi
+                    end
                 end
-                return
-            end
-
-            if state.synced then
+            elseif state.synced then
                 local idx = math.max(currentIndex(dpos), 1)
-                if idx ~= skyIndex then
-                    skyIndex = idx
-                    skyChangeAt = t
-                end
-                local fade = math.clamp((t - skyChangeAt) / 0.25, 0, 1)
                 for i = 1, SKY_LINES do
                     local l = state.lyrics[idx + (i - mid)]
-                    local text = l and ((l.text ~= "" and l.text) or "\u{266A}") or ""
-                    put(i, text, i == mid, i == mid and (1 - fade) or 0.55)
+                    texts[i] = l and ((l.text ~= "" and l.text) or "\u{266A}") or ""
                 end
+                key = "l:" .. idx
             else
+                activeMid = false
                 for i = 1, SKY_LINES do
                     local l = state.lyrics[i]
-                    put(i, l and l.text or "", false, 0.4)
+                    texts[i] = l and l.text or ""
+                end
+                key = "p:1"
+            end
+
+            -- New line/word: fade it in and float it up a touch.
+            if key ~= skyKey then
+                skyKey = key
+                if Spotify.Cfg.skyWords then
+                    skyAlpha[mid] = 0.9
+                    skyOffset[mid] = 0.035
+                else
+                    skyAlpha[mid] = 1
+                    skyOffset[mid] = 0.06
+                end
+            end
+
+            local alphaRate = 1 - math.exp(-dt * 14)
+            local offsetRate = 1 - math.exp(-dt * 10)
+            for i = 1, SKY_LINES do
+                local lbl = SkyLabels[i] and SkyLabels[i].Instance
+                if lbl then
+                    local active = activeMid and i == mid
+                    local targetAlpha = active and 0 or (activeMid and 0.55 or 0.4)
+                    lbl.Text = texts[i] or ""
+                    lbl.TextColor3 = active and Library.Theme.Accent or Library.Theme.Text
+                    skyAlpha[i] = skyAlpha[i] + (targetAlpha - skyAlpha[i]) * alphaRate
+                    skyOffset[i] = skyOffset[i] + (0 - skyOffset[i]) * offsetRate
+                    lbl.TextTransparency = skyAlpha[i]
+                    lbl.Position = UDim2New(0, 0, skyRows[i] + skyOffset[i], 0)
                 end
             end
         end
 
-        Library:Connect(RunService.RenderStepped, function()
+        Library:Connect(RunService.RenderStepped, function(dt)
             if not Spotify.Visible then return end
             Items["Track"].Instance.Text = state.title ~= "" and state.title or "Nothing playing"
             Items["Artist"].Instance.Text = state.artist
@@ -8843,7 +8919,7 @@ local Library do
             Items["Elapsed"].Instance.Text = fmt(dpos)
             Items["Remaining"].Instance.Text = "-" .. fmt(math.max(state.dur - dpos, 0))
             drawLyrics(dpos)
-            drawSky(dpos)
+            drawSky(dpos, dt)
         end)
 
         local pollRunning = false
