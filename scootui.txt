@@ -6820,6 +6820,15 @@ local Library do
 
             Window:UpdateMenuBlur()
 
+            -- Fast path: tweening every descendant on open caused a huge hitch with a menu this
+            -- large. Just flip visibility; the pages/animations still work normally.
+            if Library.FastOpen ~= false then
+                Items["Window"].Instance.Visible = Window.IsOpen
+                Items["MouseBackground"].Instance.Visible = Window.IsOpen
+                UserInputService.MouseIconEnabled = not Window.IsOpen
+                return
+            end
+
             Debounce = true 
 
             if Window.IsOpen then 
@@ -7451,6 +7460,10 @@ local Library do
             Callback = Data.Callback or Data.callback or function() end
         }
 
+        if Toggle.Tooltip == nil and Library.AutoTooltips ~= false then
+            Toggle.Tooltip = { Name = Toggle.Name, Description = "Toggles " .. Toggle.Name }
+        end
+
         local NewToggle, ToggleItems = Components:Toggle({
             Name = Toggle.Name,
             Parent = Toggle.Section.Items["Content"],
@@ -7551,6 +7564,10 @@ local Library do
             Callback = Data.Callback or Data.callback or function() end,
         }
 
+        if Slider.ToolTip == nil and Library.AutoTooltips ~= false then
+            Slider.ToolTip = { Name = Slider.Name, Description = "Adjusts " .. Slider.Name }
+        end
+
         local NewSlider, SliderItems = Components:Slider({
             Name = Slider.Name,
             Parent = Slider.Section.Items["Content"],
@@ -7601,6 +7618,10 @@ local Library do
             Multi = Data.Multi or Data.multi or false,
             Callback = Data.Callback or Data.callback or function() end            
         }
+
+        if Dropdown.ToolTip == nil and Library.AutoTooltips ~= false then
+            Dropdown.ToolTip = { Name = Dropdown.Name, Description = "Choose " .. Dropdown.Name }
+        end
 
         local NewDropdown, DropdownItems = Components:Dropdown({
             Name = Dropdown.Name,
@@ -7742,6 +7763,10 @@ local Library do
             ToolTip = Data.ToolTip or Data.tooltip or nil,
             Callback = Data.Callback or Data.callback or function() end,
         }
+
+        if Textbox.ToolTip == nil and Library.AutoTooltips ~= false then
+            Textbox.ToolTip = { Name = Textbox.Name, Description = "Enter " .. Textbox.Name }
+        end
 
         local NewTextbox, TextboxItems = Components:Textbox({
             Name = Textbox.Name,
@@ -8531,22 +8556,23 @@ local Library do
         local skyWordSize = 36
         local skySizerText = nil
 
-        Items["SkyAnchor"] = Instances:Create("Part", {
+        Items["SkyBoard"] = Instances:Create("Part", {
             Parent = Workspace,
-            Name = "SpotifySkyAnchor",
+            Name = "SpotifySkyBoard",
             Anchored = true, CanCollide = false, CanTouch = false, CanQuery = false,
-            CastShadow = false, Transparency = 1, Size = Vector3.new(1, 1, 1),
-            CFrame = CFrame.new(0, -500, 0),
+            CastShadow = false, Transparency = 1,
+            Size = Vector3.new(1800, 450, 1),
+            CFrame = CFrame.new(0, -5000, 0),
         })
 
-        Items["Sky"] = Instances:Create("BillboardGui", {
-            Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"),
+        Items["Sky"] = Instances:Create("SurfaceGui", {
+            Parent = Items["SkyBoard"].Instance,
             Name = "SpotifySkyLyrics",
-            Adornee = Items["SkyAnchor"].Instance,
+            Face = Enum.NormalId.Front,
+            SizingMode = Enum.SurfaceGuiSizingMode.FixedSize,
+            CanvasSize = Vector2.new(2048, 512),
             AlwaysOnTop = false,
             LightInfluence = 0,
-            MaxDistance = 100000,
-            Size = UDim2New(900, 0, 220, 0),
             Enabled = false,
         })
 
@@ -8835,8 +8861,8 @@ local Library do
 
         local function drawSky(dpos, dt)
             local sky = Items["Sky"] and Items["Sky"].Instance
-            local anchor = Items["SkyAnchor"] and Items["SkyAnchor"].Instance
-            if not sky or not anchor then return end
+            local board = Items["SkyBoard"] and Items["SkyBoard"].Instance
+            if not sky or not board then return end
 
             local camera = Workspace.CurrentCamera
             local char = LocalPlayer and LocalPlayer.Character
@@ -8860,10 +8886,17 @@ local Library do
                 end
                 flat = flat.Unit
 
-                skyPos = root.Position
-                    + flat * 800
-                    + Vector3.new(0, 520, 0)
-                anchor.CFrame = CFrame.new(skyPos)
+                local base = root.Position
+                skyPos = base
+                    + flat * 1800
+                    + Vector3.new(0, 900, 0)
+
+                -- Face the board at the spot it was created from, then leave it
+                -- alone forever. It is a flat 2D plane hanging in the sky.
+                board.CFrame = CFrame.lookAt(
+                    skyPos,
+                    Vector3.new(base.X, skyPos.Y, base.Z)
+                )
             end
 
             local mid = math.floor(SKY_LINES / 2) + 1
@@ -9083,8 +9116,8 @@ local Library do
         end
 
         function Spotify:Destroy()
+            if Items["SkyBoard"] then Items["SkyBoard"]:Clean() end
             if Items["Sky"] then Items["Sky"]:Clean() end
-            if Items["SkyAnchor"] then Items["SkyAnchor"]:Clean() end
             if Items["Panel"] then Items["Panel"]:Clean() end
             if Items["Screen"] then Items["Screen"]:Clean() end
             Spotify.Visible = false
